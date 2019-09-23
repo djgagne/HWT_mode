@@ -24,7 +24,7 @@ import matplotlib.colors as colors
 parser = argparse.ArgumentParser(description = "Plot WRF and SPC storm reports")
 parser.add_argument("-v", "--variable", type=str, default= 'crefuh', help='netCDF variable name')
 parser.add_argument("-o", "--outdir", type=str, default='.', help="name of output path")
-parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side", default=[1,1,0.8,0.8]) # TODO: define in units of km not degrees
+parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side in km", default=[100.,100.,100.,100.]) 
 parser.add_argument("-f", "--force_new", action='store_true', help="overwrite any old outfile, if it exists")
 parser.add_argument("--counties", action='store_true', help="draw county borders (can be slow)")
 parser.add_argument('-i', "--idir", type=str, default="/glade/p/mmm/parc/sobash/NSC/3KM_WRF_POST_12sec_ts", help="path to WRF output files")
@@ -174,7 +174,8 @@ for lon,lat,stepid,trackid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df
     if not force_new and os.path.isfile(pngfile):
         print(pngfile + " exists. Skipping. Use -f option to override.")
         continue
-    ax.set_extent([lon-padding[0], lon+padding[1], lat-padding[2], lat+padding[3]])
+    x, y = WRF_proj.transform_point(lon, lat, cartopy.crs.PlateCarree()) # Transform lon/lat to x and y (in meters) in WRF projection.
+    ax.set_extent([x-padding[0]*1000., x+padding[1]*1000., y-padding[2]*1000., y+padding[3]*1000.], crs=WRF_proj)
     plt.savefig(pngfile, dpi=175)
     print('created ' + os.path.realpath(pngfile))
 
