@@ -73,9 +73,9 @@ df = df[df.Valid_Date == valid_time]
 wrfout = idir + '/' + initial_time.strftime('%Y%m%d%H') + '/' + valid_time.strftime('diags_d01_%Y-%m-%d_%H_%M_%S.nc')
 
 # Get color map, levels, and netCDF variable name appropriate for requested variable (from fieldinfo module).
-info = fieldinfo.fieldinfo[fill]
+info = fieldinfo.nsc[fill]
 if debug:
-    print("found fieldinfo in fieldinfo.py. Using",info)
+    print("found nsc in fieldinfo.py. Using",info)
 cmap = colors.ListedColormap(info['cmap'])
 levels = info['levels']
 fill = info['fname'][0]
@@ -150,9 +150,9 @@ if args.counties:
 
 if barb:
     # Get barb netCDF variable name appropriate for requested variable (from fieldinfo module).
-    info = fieldinfo.fieldinfo[barb]
+    info = fieldinfo.nsc[barb]
     if debug:
-        print("found fieldinfo in fieldinfo.py. Using",info)
+        print("found nsc in fieldinfo.py. Using",info)
     ustr, vstr = info['fname']
     u = getvar(wrfnc, ustr)
     v = getvar(wrfnc, vstr)
@@ -162,7 +162,7 @@ if barb:
     else: alpha=1.0
 
     if debug: print("plotBarbs: starting barbs")
-    # TODO: orient barbs with map projection (in Basemap, we use m.rotate_vector())
+    # TODO: orient barbs with map projection (in Basemap, we use m.rotate_vector()). not important for small domain.
     if debug:
         print("barbs...")
     cs2 = ax.barbs(to_np(wrflon)[::skip,::skip], to_np(wrflat)[::skip,::skip], to_np(u)[::skip,::skip], to_np(v)[::skip,::skip], color='black', alpha=alpha, length=3.9, linewidth=0.25, sizes={'emptybarb':0.05}, transform=cartopy.crs.PlateCarree())
