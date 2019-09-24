@@ -2,7 +2,7 @@
 
 Copied from WRF_SPC.py Sep 20, 2019.
 
-Given a date and a set of lat/lons, plot crefuh for each lat/lon
+Given a model initialization time and a valid time, plot crefuh around hagelslag objects. 
 
 """
 import argparse
@@ -22,10 +22,11 @@ import matplotlib.colors as colors
 
 # =============Arguments===================
 parser = argparse.ArgumentParser(description = "Plot WRF and SPC storm reports")
-parser.add_argument("-v", "--variable", type=str, default= 'crefuh', help='netCDF variable name')
+parser.add_argument("-f", "--fill", type=str, default= 'crefuh', help='netCDF variable name for contour fill field')
+parser.add_argument("-b", "--barb", choices=["wind10m"], type=str, help='wind barbs')
 parser.add_argument("-o", "--outdir", type=str, default='.', help="name of output path")
 parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side in km", default=[100.,100.,100.,100.]) 
-parser.add_argument("-f", "--force_new", action='store_true', help="overwrite any old outfile, if it exists")
+parser.add_argument("--force_new", action='store_true', help="overwrite any old outfile, if it exists")
 parser.add_argument("--counties", action='store_true', help="draw county borders (can be slow)")
 parser.add_argument('-i', "--idir", type=str, default="/glade/p/mmm/parc/sobash/NSC/3KM_WRF_POST_12sec_ts", help="path to WRF output files")
 parser.add_argument('-t', "--tdir", type=str, default="/glade/work/sobash/NSC_objects/track_data_ncarstorm_3km_csv_refl", help="path to hagelslag track-step files")
@@ -36,7 +37,8 @@ parser.add_argument("-d", "--debug", action='store_true')
 
 # Assign arguments to simple-named variables
 args = parser.parse_args()
-diagnostic_name = args.variable
+fill = args.fill
+barb = args.barb
 odir = args.outdir
 padding = args.padding
 force_new = args.force_new
@@ -71,25 +73,25 @@ df = df[df.Valid_Date == valid_time]
 wrfout = idir + '/' + initial_time.strftime('%Y%m%d%H') + '/' + valid_time.strftime('diags_d01_%Y-%m-%d_%H_%M_%S.nc')
 
 # Get color map, levels, and netCDF variable name appropriate for requested variable (from fieldinfo module).
-info = fieldinfo.fieldinfo[diagnostic_name]
+info = fieldinfo.fieldinfo[fill]
 if debug:
     print("found fieldinfo in fieldinfo.py. Using",info)
 cmap = colors.ListedColormap(info['cmap'])
 levels = info['levels']
-diagnostic_name = info['fname'][0]
+fill = info['fname'][0]
 
 if debug:
     print("About to open "+wrfout)
 wrfnc = Dataset(wrfout,"r")
-if diagnostic_name not in wrfnc.variables:
-    print("variable "+ diagnostic_name + " not found")
+if fill not in wrfnc.variables:
+    print("variable "+ fill + " not found")
     print("choices:", wrfnc.variables.keys())
     sys.exit(1)
 
 # Get a 2D var from wrfout file. It has projection info.
 if debug:
     print("getvar...")
-cvar = getvar(Dataset(wrfout, 'r'),diagnostic_name)
+cvar = getvar(wrfnc,fill)
 
 if hasattr(cvar, 'long_name'):
     label = cvar.long_name
@@ -118,12 +120,12 @@ if debug:
     print('levels:',levels, 'cmap:', cmap.colors)
 
 if debug:
-    print("plt.contourf()...")
+    print("plotting filled contour...")
 cfill   = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(cvar), levels=levels, cmap=cmap, transform=cartopy.crs.PlateCarree() )
 
-# Special case of composite reflectivity/UH 
-if args.variable == 'crefuh':
-    uh = getvar(Dataset(wrfout, 'r'),info['fname'][1])
+# Special case of composite reflectivity, UH overlay
+if args.fill == 'crefuh':
+    uh = getvar(wrfnc,info['fname'][1])
     print("Overlay UH",uh.max())
     cs1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[100,1000], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
     cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[100], colors='black', linewidths=0.5, transform=cartopy.crs.PlateCarree() )
@@ -146,6 +148,25 @@ if args.counties:
     print("adding counties...")
     ax.add_feature(COUNTIES, facecolor="none", edgecolor='black', alpha=0.25, linewidth=0.2)
 
+if barb:
+    # Get barb netCDF variable name appropriate for requested variable (from fieldinfo module).
+    info = fieldinfo.fieldinfo[barb]
+    if debug:
+        print("found fieldinfo in fieldinfo.py. Using",info)
+    ustr, vstr = info['fname']
+    u = getvar(wrfnc, ustr)
+    v = getvar(wrfnc, vstr)
+    skip = 4
+
+    if args.fill ==  'crefuh': alpha=0.5
+    else: alpha=1.0
+
+    if debug: print("plotBarbs: starting barbs")
+    # TODO: orient barbs with map projection (in Basemap, we use m.rotate_vector())
+    if debug:
+        print("barbs...")
+    cs2 = ax.barbs(to_np(wrflon)[::skip,::skip], to_np(wrflat)[::skip,::skip], to_np(u)[::skip,::skip], to_np(v)[::skip,::skip], color='black', alpha=alpha, length=3.9, linewidth=0.25, sizes={'emptybarb':0.05}, transform=cartopy.crs.PlateCarree())
+
 
 # Color bar
 cb = plt.colorbar(cfill, ax=ax, format='%.0f', label=label+" ("+cvar_units_str+")", 
@@ -157,6 +178,7 @@ cb.ax.tick_params(labelsize='xx-small')
 cb.outline.set_linewidth(0.5)
 
 
+# Empty string placeholder for fine print in lower left corner of image.
 fineprint = plt.annotate(s="", xy=(260,5), xycoords='figure pixels', fontsize=4)
 
 for lon,lat,stepid,trackid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID):
@@ -172,7 +194,7 @@ for lon,lat,stepid,trackid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df
 
     # If png already exists skip this file
     if not force_new and os.path.isfile(pngfile):
-        print(pngfile + " exists. Skipping. Use -f option to override.")
+        print(pngfile + " exists. Skipping. Use --force_new option to override.")
         continue
     x, y = WRF_proj.transform_point(lon, lat, cartopy.crs.PlateCarree()) # Transform lon/lat to x and y (in meters) in WRF projection.
     ax.set_extent([x-padding[0]*1000., x+padding[1]*1000., y-padding[2]*1000., y+padding[3]*1000.], crs=WRF_proj)
@@ -182,4 +204,4 @@ for lon,lat,stepid,trackid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df
 if debug: pdb.set_trace()
 plt.close(fig)
 print("Run this command to create a montage")
-print("montage -crop 595x595+260+10 -geometry 70% -tile 5x4 d01*png t.png")
+print("montage -crop 490x490+328+80 -geometry 70% -tile 5x4 d01*png t.png")
