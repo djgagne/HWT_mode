@@ -97,7 +97,6 @@ if hasattr(cvar, 'long_name'):
     label = cvar.long_name
 elif hasattr(cvar, 'description'):
     label = cvar.description
-cvar_units_str = cvar.units
 
 wrflat, wrflon = latlon_coords(cvar)
 # get cartopy mapping object
@@ -123,12 +122,24 @@ if debug:
     print("plotting filled contour...")
 cfill   = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(cvar), levels=levels, cmap=cmap, transform=cartopy.crs.PlateCarree() )
 
+# Color bar
+cb = plt.colorbar(cfill, ax=ax, format='%.0f', label=label+" ("+cvar.units+")", 
+        shrink=0.52, orientation='horizontal')
+if cb.get_ticks().size < 9:
+    # ticks=levels (label every level) if there is room.
+    cb.set_ticks(levels)
+cb.ax.tick_params(labelsize='xx-small')
+cb.outline.set_linewidth(0.5)
+
+
 # Special case of composite reflectivity, UH overlay
 if args.fill == 'crefuh':
     uh = getvar(wrfnc,info['fname'][1])
-    print("Overlay UH",uh.max())
-    cs1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[100,1000], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
-    cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[100], colors='black', linewidths=0.5, transform=cartopy.crs.PlateCarree() )
+    uh_threshold = info['threshold']
+    print("Overlay UH "+u"\u2265",uh_threshold,' max:', uh.max())
+    cs1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[uh_threshold,1000], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
+    cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[uh_threshold], colors='black', linewidths=0.5, transform=cartopy.crs.PlateCarree() )
+    ax.set_title(ax.get_title() + " UH"+u"\u2265"+str(uh_threshold) +" "+ uh.units)
     # for some reason the zero contour is plotted if there are no other valid contours
     # are there some small negatives due to regridding? No.
     if 0.0 in cs2.levels:
@@ -153,10 +164,8 @@ if barb:
     info = fieldinfo.nsc[barb]
     if debug:
         print("found nsc in fieldinfo.py. Using",info)
-    ustr, vstr = info['fname']
-    u = getvar(wrfnc, ustr)
-    v = getvar(wrfnc, vstr)
-    skip = 4
+    u,v = getvar(wrfnc, 'uvmet10', units='kt')
+    skip = fieldinfo.nsc[barb]['skip']
 
     if args.fill ==  'crefuh': alpha=0.5
     else: alpha=1.0
@@ -166,16 +175,7 @@ if barb:
     if debug:
         print("barbs...")
     cs2 = ax.barbs(to_np(wrflon)[::skip,::skip], to_np(wrflat)[::skip,::skip], to_np(u)[::skip,::skip], to_np(v)[::skip,::skip], color='black', alpha=alpha, length=3.9, linewidth=0.25, sizes={'emptybarb':0.05}, transform=cartopy.crs.PlateCarree())
-
-
-# Color bar
-cb = plt.colorbar(cfill, ax=ax, format='%.0f', label=label+" ("+cvar_units_str+")", 
-        shrink=0.55, orientation='horizontal')
-if cb.get_ticks().size < 9:
-    # ticks=levels (label every level) if there is room.
-    cb.set_ticks(levels)
-cb.ax.tick_params(labelsize='xx-small')
-cb.outline.set_linewidth(0.5)
+    ax.set_title(ax.get_title() + " wind barb (" + u.units + ")")
 
 
 # Empty string placeholder for fine print in lower left corner of image.
