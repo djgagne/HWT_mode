@@ -241,7 +241,8 @@ for plev in ['200', '250', '300', '500', '700', '850', '925']:
 # Another fieldinfo dictionary for nsc files. 
 nsc = fieldinfo
 nsc['crefuh']['fname'] = ['REFL_COM', 'UP_HELI_MAX']
-nsc['wind10m']['fname'] = ['U10', 'V10']
+nsc['crefuh']['threshold'] = 100
+nsc['wind10m']['skip'] = 4
 nsc['mucape']['fname'] = ['MUCAPE']
 nsc['t2']['fname'] = ['T2']
 
