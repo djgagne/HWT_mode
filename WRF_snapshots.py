@@ -140,12 +140,19 @@ if args.fill == 'crefuh':
     cs1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[uh_threshold,1000], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
     cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[uh_threshold], colors='black', linewidths=0.5, transform=cartopy.crs.PlateCarree() )
     ax.set_title(ax.get_title() + " UH"+u"\u2265"+str(uh_threshold) +" "+ uh.units)
-    # for some reason the zero contour is plotted if there are no other valid contours
-    # are there some small negatives due to regridding? No.
+    # Oddly, the zero contour is plotted if there are no other valid contours
     if 0.0 in cs2.levels:
         print("uh has zero contour for some reason. Hide it")
-        for i in cs2.collections:
-            i.remove()
+        for i in cs2.collections: i.remove()
+    ax.set_title(ax.get_title() + " UH"+u"\u2265"+str(uh_threshold) +" "+ uh.units)
+
+    # Draw negative UH swaths in orange
+    negUHcolor = 'orange'
+    negUH1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(-uh), levels=[uh_threshold,1000], colors=negUHcolor, alpha=0.3, transform=cartopy.crs.PlateCarree() )
+    negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(-uh), levels=[uh_threshold], colors=negUHcolor, linewidths=0.5, transform=cartopy.crs.PlateCarree() )
+    if 0.0 in negUH2.levels:
+        print("neg uh has a zero contour. Hide it")
+        for i in negUH2.collections: i.remove()
 
 # Read my own county shape file.
 if args.counties:
@@ -204,4 +211,4 @@ for lon,lat,stepid,trackid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df
 if debug: pdb.set_trace()
 plt.close(fig)
 print("Run this command to create a montage")
-print("montage -crop 490x490+328+80 -geometry 70% -tile 5x4 d01*png t.png")
+print("montage -crop 475x475+335+92 -geometry 70% -tile 5x4 d01*png t.png")
