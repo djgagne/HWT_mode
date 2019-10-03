@@ -134,25 +134,37 @@ cb.outline.set_linewidth(0.5)
 
 # Special case of composite reflectivity, UH overlay
 if args.fill == 'crefuh':
-    uh = getvar(wrfnc,info['fname'][1])
-    uh_threshold = info['threshold']
-    print("Overlay UH "+u"\u2265",uh_threshold,' max:', uh.max())
-    cs1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[uh_threshold,1000], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
-    cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(uh), levels=[uh_threshold], colors='black', linewidths=0.5, transform=cartopy.crs.PlateCarree() )
-    ax.set_title(ax.get_title() + " UH"+u"\u2265"+str(uh_threshold) +" "+ uh.units)
-    # Oddly, the zero contour is plotted if there are no other valid contours
-    if 0.0 in cs2.levels:
-        print("uh has zero contour for some reason. Hide it")
-        for i in cs2.collections: i.remove()
-    ax.set_title(ax.get_title() + " UH"+u"\u2265"+str(uh_threshold) +" "+ uh.units)
+    max_uh = getvar(wrfnc,info['fname'][1])
+    min_uh = getvar(wrfnc,info['fname'][2])
+    max_uh_threshold = info['max_threshold']
+    min_uh_threshold = info['min_threshold']
+    print("UH max:", max_uh.max(), "UH min:", min_uh.min())
+    if max_uh.max() > max_uh_threshold:
+        print("Overlay UH >",max_uh_threshold)
+        # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty. See https://github.com/SciTools/cartopy/issues/1290
+        cs1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=[max_uh_threshold,1000], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
+        cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=[max_uh_threshold], colors='black', linewidths=0.5, transform=cartopy.crs.PlateCarree() )
+        ax.set_title(ax.get_title() + " UH>"+str(max_uh_threshold) +" "+ max_uh.units)
+        # Oddly, the zero contour is plotted if there are no other valid contours
+        if 0.0 in cs2.levels:
+            print("uh has zero contour for some reason. Hide it")
+            if debug:
+                pdb.set_trace()
+            for i in cs2.collections: i.remove()
 
-    # Draw negative UH swaths in orange
-    negUHcolor = 'orange'
-    negUH1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(-uh), levels=[uh_threshold,1000], colors=negUHcolor, alpha=0.3, transform=cartopy.crs.PlateCarree() )
-    negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(-uh), levels=[uh_threshold], colors=negUHcolor, linewidths=0.5, transform=cartopy.crs.PlateCarree() )
-    if 0.0 in negUH2.levels:
-        print("neg uh has a zero contour. Hide it")
-        for i in negUH2.collections: i.remove()
+    if min_uh.min() < min_uh_threshold:
+        print("Overlay UH <",min_uh_threshold)
+        # Draw negative UH swaths in orange
+        negUHcolor = 'orange'
+        # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty. See https://github.com/SciTools/cartopy/issues/1290
+        negUH1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=[-1000, min_uh_threshold], colors=negUHcolor, alpha=0.3, transform=cartopy.crs.PlateCarree() )
+        negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=[min_uh_threshold], colors=negUHcolor, linewidths=0.5, transform=cartopy.crs.PlateCarree() )
+        ax.set_title(ax.get_title() + " UH<"+str(-min_uh_threshold) +" "+ min_uh.units)
+        if 0.0 in negUH2.levels:
+            print("neg uh has a zero contour. Hide it")
+            if debug:
+                pdb.set_trace()
+            for i in negUH2.collections: i.remove()
 
 # Read my own county shape file.
 if args.counties:
