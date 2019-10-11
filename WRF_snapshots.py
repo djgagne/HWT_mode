@@ -171,7 +171,7 @@ if args.fill == 'crefuh':
         # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty. See https://github.com/SciTools/cartopy/issues/1290
         negUH1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=[-1000, min_uh_threshold], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
         if debug: print("dashed contour UH <",min_uh_threshold)
-        negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=min_uh_threshold*np.arange(6,1,-1), colors='black', linestyles='dashed', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
+        negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=min_uh_threshold*np.arange(6,0,-1), colors='black', linestyles='dashed', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
         ax.set_title(ax.get_title() + " UH<"+str(-min_uh_threshold) +" "+ min_uh.units)
         if 0.0 in negUH2.levels:
             print("neg uh has a zero contour. Hide it")
