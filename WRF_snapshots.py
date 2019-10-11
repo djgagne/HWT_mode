@@ -129,7 +129,7 @@ if debug:
 
 if debug:
     print("plotting filled contour",cvar.name,"...")
-cfill   = ax.contourf(to_np(wrflon[::10,::10]), to_np(wrflat[::10,::10]), to_np(cvar[::10,::10]), levels=levels, cmap=cmap, transform=cartopy.crs.PlateCarree() )
+cfill   = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(cvar), levels=levels, cmap=cmap, transform=cartopy.crs.PlateCarree() )
 
 # Color bar
 cb = plt.colorbar(cfill, ax=ax, format='%.0f', label=label+" ("+cvar.units+")", 
@@ -157,7 +157,7 @@ if args.fill == 'crefuh':
         # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty. See https://github.com/SciTools/cartopy/issues/1290
         cs1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=[max_uh_threshold,1000], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
         if debug: print("solid contour UH >",max_uh_threshold)
-        cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=max_uh_threshold*np.array([1,2,3,4,5]), colors='black', linestyles='solid', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
+        cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=max_uh_threshold*np.arange(1,6), colors='black', linestyles='solid', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
         ax.set_title(ax.get_title() + " UH>"+str(max_uh_threshold) +" "+ max_uh.units)
         # Oddly, the zero contour is plotted if there are no other valid contours
         if 0.0 in cs2.levels:
@@ -171,7 +171,7 @@ if args.fill == 'crefuh':
         # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty. See https://github.com/SciTools/cartopy/issues/1290
         negUH1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=[-1000, min_uh_threshold], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
         if debug: print("dashed contour UH <",min_uh_threshold)
-        negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=min_uh_threshold*np.array([1,2,3,4,5]), colors='black', linestyles='dashed', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
+        negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=min_uh_threshold*np.arange(6,1,-1), colors='black', linestyles='dashed', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
         ax.set_title(ax.get_title() + " UH<"+str(-min_uh_threshold) +" "+ min_uh.units)
         if 0.0 in negUH2.levels:
             print("neg uh has a zero contour. Hide it")
@@ -239,4 +239,4 @@ for lon,lat,stepid,trackid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df
 if debug: pdb.set_trace()
 plt.close(fig)
 print("Run this command to create a montage")
-print("montage -crop 475x470+335+92 -geometry 70% -tile 5x4 d01*png t.png")
+print("montage -crop 465x465+340+95 -geometry 70% -tile 5x4 d01*png t.png")
