@@ -21,7 +21,8 @@ import matplotlib.colors as colors
 
 
 # =============Arguments===================
-parser = argparse.ArgumentParser(description = "Plot WRF and SPC storm reports")
+parser = argparse.ArgumentParser(description = "Plot WRF and SPC storm reports",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-f", "--fill", type=str, default= 'crefuh', help='netCDF variable name for contour fill field')
 parser.add_argument("-b", "--barb", choices=["wind10m"], type=str, help='wind barbs')
 parser.add_argument("-o", "--outdir", type=str, default='.', help="name of output path")
@@ -59,6 +60,16 @@ if lead_time < datetime.timedelta(hours=12) or lead_time > datetime.timedelta(ho
     print("lead_time:",lead_time, "not between 12 and 36 hours")
     sys.exit(1)
 
+def change_scale(scale_xy):
+    # Update labels on axes with the distance along each axis.
+    # Cartopy axes do not have a set_xlabel() or set_ylabel() method. Add labels manually.
+    xspan = ax.get_xlim()
+    yspan = ax.get_ylim()
+    xlabel = "%dkm" % (np.round((xspan[1]-xspan[0])/1000.))
+    ylabel = "%dkm" % (np.round((yspan[1]-yspan[0])/1000.))
+    x, y = scale_xy
+    x.set_text(xlabel)
+    y.set_text(ylabel)
 
 # Read hagelslag track_step csv file into pandas DataFrame.
 tracks = tdir + '/' + initial_time.strftime('track_step_NCARSTORM_d01_%Y%m%d-0000_12.csv')
@@ -103,14 +114,12 @@ wrflat, wrflon = latlon_coords(cvar)
 if debug:
     print("get_cartopy...")
 WRF_proj = get_cartopy(cvar)
-if debug:
-    pdb.set_trace()
 
 fig = plt.figure()
 if debug:
     print("plt.axes()")
 ax = plt.axes(projection=WRF_proj)
-ax.add_feature(cartopy.feature.STATES.with_scale('50m'), linewidth=0.45, alpha=0.75)
+ax.add_feature(cartopy.feature.STATES.with_scale('50m'), linewidth=0.4, alpha=0.6)
 
 if cvar.min() > levels[-1] or cvar.max() < levels[0]:
     print('levels',levels,'out of range of cvar', cvar.values.min(), cvar.values.max())
@@ -119,8 +128,8 @@ if debug:
     print('levels:',levels, 'cmap:', cmap.colors)
 
 if debug:
-    print("plotting filled contour...")
-cfill   = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(cvar), levels=levels, cmap=cmap, transform=cartopy.crs.PlateCarree() )
+    print("plotting filled contour",cvar.name,"...")
+cfill   = ax.contourf(to_np(wrflon[::10,::10]), to_np(wrflat[::10,::10]), to_np(cvar[::10,::10]), levels=levels, cmap=cmap, transform=cartopy.crs.PlateCarree() )
 
 # Color bar
 cb = plt.colorbar(cfill, ax=ax, format='%.0f', label=label+" ("+cvar.units+")", 
@@ -131,6 +140,10 @@ if cb.get_ticks().size < 9:
 cb.ax.tick_params(labelsize='xx-small')
 cb.outline.set_linewidth(0.5)
 
+# Create 2 text object placeholders for spatial scale. Will be updated with each set_extent().
+scale_kw = {"ha":"center","rotation_mode":"anchor","transform":ax.transAxes}
+scale_xy = (ax.text(-0.01, 0.5, "", va='bottom', rotation='vertical', **scale_kw),
+            ax.text(0.5, -0.01, "", va='top',  rotation='horizontal', **scale_kw))
 
 # Special case of composite reflectivity, UH overlay
 if args.fill == 'crefuh':
@@ -140,10 +153,11 @@ if args.fill == 'crefuh':
     min_uh_threshold = info['min_threshold']
     print("UH max:", max_uh.max(), "UH min:", min_uh.min())
     if max_uh.max() > max_uh_threshold:
-        print("Overlay UH >",max_uh_threshold)
+        print("Filled contour UH >",max_uh_threshold)
         # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty. See https://github.com/SciTools/cartopy/issues/1290
         cs1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=[max_uh_threshold,1000], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
-        cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=[max_uh_threshold], colors='black', linewidths=0.5, transform=cartopy.crs.PlateCarree() )
+        if debug: print("solid contour UH >",max_uh_threshold)
+        cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=max_uh_threshold*np.array([1,2,3,4,5]), colors='black', linestyles='solid', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
         ax.set_title(ax.get_title() + " UH>"+str(max_uh_threshold) +" "+ max_uh.units)
         # Oddly, the zero contour is plotted if there are no other valid contours
         if 0.0 in cs2.levels:
@@ -153,12 +167,11 @@ if args.fill == 'crefuh':
             for i in cs2.collections: i.remove()
 
     if min_uh.min() < min_uh_threshold:
-        print("Overlay UH <",min_uh_threshold)
-        # Draw negative UH swaths in orange
-        negUHcolor = 'orange'
+        print("Filled UH contour <",min_uh_threshold)
         # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty. See https://github.com/SciTools/cartopy/issues/1290
-        negUH1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=[-1000, min_uh_threshold], colors=negUHcolor, alpha=0.3, transform=cartopy.crs.PlateCarree() )
-        negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=[min_uh_threshold], colors=negUHcolor, linewidths=0.5, transform=cartopy.crs.PlateCarree() )
+        negUH1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=[-1000, min_uh_threshold], colors='black', alpha=0.3, transform=cartopy.crs.PlateCarree() )
+        if debug: print("dashed contour UH <",min_uh_threshold)
+        negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=min_uh_threshold*np.array([1,2,3,4,5]), colors='black', linestyles='dashed', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
         ax.set_title(ax.get_title() + " UH<"+str(-min_uh_threshold) +" "+ min_uh.units)
         if 0.0 in negUH2.levels:
             print("neg uh has a zero contour. Hide it")
@@ -170,8 +183,7 @@ if args.fill == 'crefuh':
 if args.counties:
     if debug:
         print("About to draw counties")
-        pdb.set_trace()
-    reader = cartopy.io.shapereader.Reader('/glade/work/ahijevyc/share/cb_2013_us_county_500k/cb_2013_us_county_500k.shp')
+    reader = cartopy.io.shapereader.Reader('/glade/work/ahijevyc/share/shapeFiles/cb_2013_us_county_500k/cb_2013_us_county_500k.shp')
     counties = list(reader.geometries())
     # Create custom cartopy feature that can be added to the axes.
     COUNTIES = cartopy.feature.ShapelyFeature(counties, cartopy.crs.PlateCarree())
@@ -217,10 +229,14 @@ for lon,lat,stepid,trackid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df
         continue
     x, y = WRF_proj.transform_point(lon, lat, cartopy.crs.PlateCarree()) # Transform lon/lat to x and y (in meters) in WRF projection.
     ax.set_extent([x-padding[0]*1000., x+padding[1]*1000., y-padding[2]*1000., y+padding[3]*1000.], crs=WRF_proj)
+
+    # Update axes labels.
+    change_scale(scale_xy)
+
     plt.savefig(pngfile, dpi=175)
     print('created ' + os.path.realpath(pngfile))
 
 if debug: pdb.set_trace()
 plt.close(fig)
 print("Run this command to create a montage")
-print("montage -crop 475x475+335+92 -geometry 70% -tile 5x4 d01*png t.png")
+print("montage -crop 475x470+335+92 -geometry 70% -tile 5x4 d01*png t.png")
