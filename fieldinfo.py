@@ -243,7 +243,6 @@ nsc = fieldinfo
 nsc['crefuh']['fname'] = ['REFL_COM', 'UP_HELI_MAX', 'UP_HELI_MIN']
 nsc['crefuh']['max_threshold'] = 50
 nsc['crefuh']['min_threshold'] = -50
-nsc['wind10m']['skip'] = 4
 nsc['mucape']['fname'] = ['MUCAPE']
 nsc['t2']['fname'] = ['T2']
 
