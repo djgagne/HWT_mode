@@ -27,7 +27,8 @@ parser.add_argument("-f", "--fill", type=str, default= 'crefuh', help='netCDF va
 parser.add_argument("-b", "--barb", choices=["wind10m"], type=str, default="wind10m", help='wind barbs')
 parser.add_argument("-o", "--outdir", type=str, default='.', help="name of output path")
 parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side in km", 
-        default=[100.,100.,100.,100.]) 
+        default=[150.,150.,150.,150.]) 
+parser.add_argument("--no-fineprint", action='store_true', help="Don't write details at bottom of image")
 parser.add_argument("--force_new", action='store_true', help="overwrite any old outfile, if it exists")
 parser.add_argument("--no-counties", action='store_true', help="Don't draw county borders (can be slow)")
 parser.add_argument("--no-mask", action='store_true', help="Don't draw object mask")
@@ -51,6 +52,7 @@ fill         = args.fill
 barb         = args.barb
 odir         = args.outdir
 padding      = args.padding
+no_fineprint = args.no_fineprint
 force_new    = args.force_new
 no_counties  = args.no_counties
 no_mask      = args.no_mask
@@ -68,11 +70,11 @@ if debug:
 # Derive lead time and make sure it is between 12 and 36 hours. 
 lead_time = valid_time - initial_time
 
-if lead_time < datetime.timedelta(hours=12) or lead_time > datetime.timedelta(hours=36):
-    print("lead_time:",lead_time, "not between 12 and 36 hours")
+if lead_time < datetime.timedelta(hours=7) or lead_time > datetime.timedelta(hours=36):
+    print("lead_time:",lead_time, "not between 7 and 36 hours")
     #sys.exit(1)
 
-def change_scale(scale_xy):
+def update_scale_labels(scale_xy):
     # Update labels on axes with the distance along each axis.
     # Cartopy axes do not have a set_xlabel() or set_ylabel() method. Add labels manually.
     xspan = ax.get_xlim()
@@ -246,21 +248,23 @@ if barb:
     cs2 = ax.barbs(to_np(wrflon)[::skip*stride,::skip*stride], to_np(wrflat)[::skip*stride,::skip*stride], 
             to_np(u)[::skip*stride,::skip*stride], to_np(v)[::skip*stride,::skip*stride], color='black', 
             alpha=alpha, length=3.9, linewidth=0.25, sizes={'emptybarb':0.05}, transform=cartopy.crs.PlateCarree())
-    ax.set_title(ax.get_title() + " wind barb (" + u.units + ")")
+    ax.set_title(ax.get_title() + " wind barb (" + u.units + ")", fontsize="small")
 
 
 # Empty string placeholder for fine print in lower left corner of image.
-fineprint = plt.annotate(s="", xy=(260,5), xycoords='figure pixels', fontsize=4)
+fineprint = plt.annotate(s="", xy=(260,5), xycoords='figure pixels', va="bottom", fontsize=4)
 
-for lon,lat,stepid,trackid,u,v in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID,df.Storm_Motion_U,df.Storm_Motion_V):
+for lon,lat,stepid,trackid,u,v,valid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID,df.Storm_Motion_U,df.Storm_Motion_V,df.Valid_Date):
 
     pngfile = odir + '/' + stepid + ".png"
 
     string  = os.path.realpath(wrfout)
+    if not no_mask:
+        string += "\n"+patches
     string += "\ntrack "+trackid
     string += "\ncreated "+str(datetime.datetime.now(tz=None)).split('.')[0]
 
-    if debug: # show fineprint if debug
+    if not no_fineprint: # show fineprint
         fineprint.set_text(string)
 
     # If png already exists skip this file
@@ -280,7 +284,7 @@ for lon,lat,stepid,trackid,u,v in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_I
         ip = np.where(matches)[0][0]
         if not any(matches):
             pdb.set_trace()
-        tolerance = 0.015 # why would centroid of csv object and nc patch differ at all?
+        tolerance = 0.015 # TODO: figure out why centroid of csv object and nc patch differ at all
         if np.abs(lon-mask_centroid_lons[ip]) > tolerance:
             print(stepid,lon,mask_centroid_lons[ip])
         if np.abs(lat-mask_centroid_lats[ip]) > tolerance:
@@ -292,7 +296,7 @@ for lon,lat,stepid,trackid,u,v in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_I
                 linewidths=3, linestyles="solid", zorder=2, transform=cartopy.crs.PlateCarree())
 
     # Update axes labels (distance along axes).
-    change_scale(scale_xy)
+    update_scale_labels(scale_xy)
 
     # Storm motion vector
     x, y = WRF_proj.transform_point(lon, lat, cartopy.crs.PlateCarree())
