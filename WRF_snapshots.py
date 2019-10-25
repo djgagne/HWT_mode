@@ -27,7 +27,9 @@ parser.add_argument("-f", "--fill", type=str, default= 'crefuh', help='netCDF va
 parser.add_argument("-b", "--barb", choices=["wind10m"], type=str, default="wind10m", help='wind barbs')
 parser.add_argument("-o", "--outdir", type=str, default='.', help="name of output path")
 parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side in km", 
-        default=[150.,150.,150.,150.]) 
+        default=[175.,175.,175.,175.]) 
+parser.add_argument("--timeshift", type=int, default=0, help="hours to shift background field") 
+parser.add_argument("--arrow", action='store_true', help="Add storm motion vector")
 parser.add_argument("--no-fineprint", action='store_true', help="Don't write details at bottom of image")
 parser.add_argument("--force_new", action='store_true', help="overwrite any old outfile, if it exists")
 parser.add_argument("--no-counties", action='store_true', help="Don't draw county borders (can be slow)")
@@ -52,6 +54,8 @@ fill         = args.fill
 barb         = args.barb
 odir         = args.outdir
 padding      = args.padding
+timeshift    = args.timeshift
+arrow        = args.arrow
 no_fineprint = args.no_fineprint
 force_new    = args.force_new
 no_counties  = args.no_counties
@@ -112,7 +116,8 @@ if not no_mask:
 
 
 # Get wrfout filename
-wrfout = idir + '/' + initial_time.strftime('%Y%m%d%H') + '/' + valid_time.strftime('diags_d01_%Y-%m-%d_%H_%M_%S.nc')
+history_time = valid_time + datetime.timedelta(hours=timeshift)
+wrfout = idir + '/' + initial_time.strftime('%Y%m%d%H') + '/' + history_time.strftime('diags_d01_%Y-%m-%d_%H_%M_%S.nc')
 
 # Get color map, levels, and netCDF variable name appropriate for requested variable (from fieldinfo module).
 info = fieldinfo.nsc[fill]
@@ -252,11 +257,11 @@ if barb:
 
 
 # Empty string placeholder for fine print in lower left corner of image.
-fineprint = plt.annotate(s="", xy=(260,5), xycoords='figure pixels', va="bottom", fontsize=4)
+fineprint = plt.annotate(s="", xy=(0,5), xycoords=('axes fraction', 'figure pixels'), va="bottom", fontsize=4)
 
 for lon,lat,stepid,trackid,u,v,valid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID,df.Storm_Motion_U,df.Storm_Motion_V,df.Valid_Date):
 
-    pngfile = odir + '/' + stepid + ".png"
+    pngfile = odir + '/' + stepid + "_" + "{:+1.0f}".format(timeshift) + ".png"
 
     string  = os.path.realpath(wrfout)
     if not no_mask:
@@ -293,21 +298,22 @@ for lon,lat,stepid,trackid,u,v,valid in zip(df.Centroid_Lon, df.Centroid_Lat,df.
         mlon = mlons[ip]
         mlat = mlats[ip]
         mcntr = ax.contour(mlon, mlat, mask, levels=[0,10], colors='white', alpha=0.75, 
-                linewidths=3, linestyles="solid", zorder=2, transform=cartopy.crs.PlateCarree())
+                linewidths=2., linestyles="solid", zorder=2, transform=cartopy.crs.PlateCarree())
 
     # Update axes labels (distance along axes).
     update_scale_labels(scale_xy)
 
-    # Storm motion vector
-    x, y = WRF_proj.transform_point(lon, lat, cartopy.crs.PlateCarree())
-    smv = ax.arrow(x, y, u*0.5, v*0.5, color=mcntr.colors, alpha=mcntr.get_alpha(), 
-         linewidth=mcntr.linewidths, zorder=2, transform=WRF_proj) # tried length_includes_head=True, but zero-size gives ValueError about shape Nx2 needed.
+    if arrow:
+        # Storm motion vector points from previous location to present location.
+        smv = ax.arrow(x-u, y-v, u, v, color=mcntr.colors, alpha=mcntr.get_alpha(), # Can't get head to show. Tried quiver, plot, head_width, head_length..., annotate... 
+             linewidth=1, zorder=2, capstyle='round', transform=WRF_proj) # tried length_includes_head=True, but zero-size gives ValueError about shape Nx2 needed.
+
 
     # Save image. 
     plt.savefig(pngfile, dpi=175)
     print('created ' + os.path.realpath(pngfile))
 
-    smv.remove()
+    if arrow: smv.remove()
 
     # Remove object mask contour
     if not no_mask:
