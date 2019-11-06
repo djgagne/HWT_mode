@@ -14,6 +14,7 @@ import pandas as pd
 import numpy as np
 import fieldinfo # levels and color tables - Adapted from /glade/u/home/wrfrt/wwe/python_scripts/fieldinfo.py 20190125.
 from wrf import to_np, getvar, get_cartopy, latlon_coords
+from metpy.units import units
 from netCDF4 import Dataset
 import cartopy
 import matplotlib.pyplot as plt
@@ -140,6 +141,9 @@ if debug:
     print("getvar...")
 cvar = getvar(wrfnc,fill)
 
+if fill == "RAINNC": # with all the possible fields and unit conversions, this could get messy with all the if-blocks.
+    cvar.metpy.convert_units('inches')
+
 if hasattr(cvar, 'long_name'):
     label = cvar.long_name
 elif hasattr(cvar, 'description'):
@@ -171,7 +175,8 @@ cfill = ax.contourf(to_np(wrflon[::stride,::stride]), to_np(wrflat[::stride,::st
 # Color bar
 cb = plt.colorbar(cfill, ax=ax, format='%.0f', label=label+" ("+cvar.units+")", shrink=0.52, orientation='horizontal')
 cb.set_label(label+" ("+cvar.units+")", fontsize="small")
-if cb.get_ticks().size < 9:
+pdb.set_trace()
+if len(levels) < 9:
     # label every level if there is room.
     cb.set_ticks(levels)
 cb.ax.tick_params(labelsize='xx-small')
@@ -249,7 +254,7 @@ if barb:
     else: alpha=1.0
 
     if debug: print("plotBarbs: starting barbs")
-    # TODO: orient barbs with map projection (in Basemap, we use m.rotate_vector()). not important for small domain.
+    # barbs already oriented with map projection. In Basemap, we needed to use m.rotate_vector().
     cs2 = ax.barbs(to_np(wrflon)[::skip*stride,::skip*stride], to_np(wrflat)[::skip*stride,::skip*stride], 
             to_np(u)[::skip*stride,::skip*stride], to_np(v)[::skip*stride,::skip*stride], color='black', 
             alpha=alpha, length=3.9, linewidth=0.25, sizes={'emptybarb':0.05}, transform=cartopy.crs.PlateCarree())
