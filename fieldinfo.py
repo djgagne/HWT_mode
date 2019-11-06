@@ -1,5 +1,6 @@
 import os # for NCARG_ROOT
 import numpy as np
+import re 
 tenths = np.arange(0.1,1.1,0.1)
 fifths = np.arange(0.2,1.2,0.2)
 
@@ -246,6 +247,25 @@ nsc['crefuh']['min_threshold'] = -50
 nsc['mucape']['fname'] = ['MUCAPE']
 nsc['t2']['fname'] = ['T2']
 
+
+narr = fieldinfo
+narrSfc = ('sfc', 'RS.sfc')
+narrFlx = ('flx', 'RS.flx')
+narr3D  = ('3D', '3D')
+for v in fieldinfo:
+    narr[v]['filename'] = narrSfc
+winds = ['wind10m']
+winds.extend(['wind'+plev for plev in ['200', '250', '300', '500', '700', '850', '925']])
+for wind in winds:
+    narr[wind]['filename'] = narr3D
+    narr[wind]['fname'] = ['U_GRD_221_ISBL','V_GRD_221_ISBL']
+    narr[wind]['vertical'] = int(re.search(r'\d+', wind)[0]) # extract numeric part as integer (works for 'wind10m' too)
+narr['wind10m']['fname'] = ['U_GRD_221_HTGL','V_GRD_221_HTGL']
+narr['wind10m']['filename'] = narrFlx
+narr['mslp']['fname'] = ['PRMSL_221_MSL']
+narr['mslp']['filename'] = narrFlx
+narr['mucape']['fname'] = ['CAPE_221_SFC']
+narr['precipacc']['fname'] = ['RAINNC']
 
 # Combine levels from RAIN, FZRA, ICE, and SNOW for plotting 1-hr accumulated precip for each type. Ahijevych added this
 #fieldinfo['ptypes']['levels'] = [fieldinfo['precip']['levels'][1:],fieldinfo['snow']['levels'],fieldinfo['ice']['levels'],fieldinfo['fzra']['levels']]
