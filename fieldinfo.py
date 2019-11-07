@@ -264,8 +264,11 @@ narr['wind10m']['fname'] = ['U_GRD_221_HTGL','V_GRD_221_HTGL']
 narr['wind10m']['filename'] = narrFlx
 narr['mslp']['fname'] = ['PRMSL_221_MSL']
 narr['mslp']['filename'] = narrFlx
+narr['mslp']['units'] = 'hPa'
 narr['mucape']['fname'] = ['CAPE_221_SFC']
 narr['precipacc']['fname'] = ['RAINNC']
+narr['t2']['fname'] = ['TMP_221_SFC']
+narr['t2']['units'] = 'degF'
 
 # Combine levels from RAIN, FZRA, ICE, and SNOW for plotting 1-hr accumulated precip for each type. Ahijevych added this
 #fieldinfo['ptypes']['levels'] = [fieldinfo['precip']['levels'][1:],fieldinfo['snow']['levels'],fieldinfo['ice']['levels'],fieldinfo['fzra']['levels']]
