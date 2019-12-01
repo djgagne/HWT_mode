@@ -38,9 +38,9 @@ parser.add_argument("--no-mask", action='store_true', help="Don't draw object ma
 parser.add_argument('-i', "--idir", type=str, default="/glade/p/mmm/parc/sobash/NSC/3KM_WRF_POST_12sec_ts", 
         help="path to WRF output files")
 parser.add_argument('-s', "--stride", type=int, default=1, help="speed things up with stride>1")
-parser.add_argument('-t', "--tdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_csv", 
+parser.add_argument('-t', "--trackdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_csv", 
         help="path to hagelslag track-step files")
-parser.add_argument("--patchesdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_nc", 
+parser.add_argument("--patchdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_nc", 
         help="path to hagelslag netCDF patches")
 parser.add_argument("initial_time", type=lambda d: datetime.datetime.strptime(d, '%Y%m%d%H'), 
         help="model initialization date and hour, yyyymmddhh")
@@ -63,8 +63,8 @@ no_counties  = args.no_counties
 no_mask      = args.no_mask
 idir         = args.idir
 stride       = args.stride
-pdir         = args.patchesdir
-tdir         = args.tdir
+patchdir     = args.patchdir
+trackdir     = args.trackdir
 initial_time = args.initial_time
 valid_time   = args.valid_time
 debug        = args.debug
@@ -92,7 +92,7 @@ def update_scale_labels(scale_xy):
 
 # Read hagelslag track_step csv file into pandas DataFrame.
 mysterious_suffix = '' # '_13' or '_12'
-tracks = tdir + '/' + initial_time.strftime('track_step_NCARSTORM_d01_%Y%m%d-%H%M')+mysterious_suffix+'.csv'
+tracks = trackdir + '/' + initial_time.strftime('track_step_NCARSTORM_d01_%Y%m%d-%H%M')+mysterious_suffix+'.csv'
 if debug:
     print("reading csv file",tracks)
 df = pd.read_csv(tracks, parse_dates=['Run_Date', 'Valid_Date'])
@@ -104,7 +104,7 @@ if df.empty:
 
 if not no_mask:
     # Read netCDF patches
-    patches = pdir + '/' + initial_time.strftime('NCARSTORM_%Y%m%d-%H%M_d01_model_patches.nc')
+    patches = patchdir + '/' + initial_time.strftime('NCARSTORM_%Y%m%d-%H%M_d01_model_patches.nc')
     pnc = Dataset(patches,'r')
     masks = pnc.variables["masks"][:]
     mlons = pnc.variables["lon"][:]
@@ -155,11 +155,18 @@ if debug:
     print("get_cartopy...")
 WRF_proj = get_cartopy(cvar)
 
-fig = plt.figure()
+fig = plt.figure(figsize=(7,7.5))
 if debug:
     print("plt.axes()")
 ax = plt.axes(projection=WRF_proj)
 ax.add_feature(cartopy.feature.STATES.with_scale('10m'), linewidth=0.35, alpha=0.55)
+
+# Set title (month and hour)
+ax.set_title(history_time.strftime("%b %HZ"))
+
+# Empty fineprint placeholder in lower left corner of image.
+fineprint0 = ''
+fineprint_obj = plt.annotate(s=fineprint0, xy=(0,5), xycoords=('axes fraction', 'figure pixels'), va="bottom", fontsize=4)
 
 if cvar.min() > levels[-1] or cvar.max() < levels[0]:
     print('levels',levels,'out of range of cvar', cvar.values.min(), cvar.values.max())
@@ -175,7 +182,6 @@ cfill = ax.contourf(to_np(wrflon[::stride,::stride]), to_np(wrflat[::stride,::st
 # Color bar
 cb = plt.colorbar(cfill, ax=ax, format='%.0f', label=label+" ("+cvar.units+")", shrink=0.52, orientation='horizontal')
 cb.set_label(label+" ("+cvar.units+")", fontsize="small")
-pdb.set_trace()
 if len(levels) < 9:
     # label every level if there is room.
     cb.set_ticks(levels)
@@ -205,7 +211,7 @@ if args.fill == 'crefuh':
         if debug: print("solid contour UH >",max_uh_threshold)
         cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=max_uh_threshold*np.arange(1,6), colors='black', 
                 linestyles='solid', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
-        ax.set_title(ax.get_title() + " UH>"+str(max_uh_threshold) +" "+ max_uh.units)
+        fineprint0 += "UH>"+str(max_uh_threshold) +" "+ max_uh.units + " "
         # Oddly, the zero contour is plotted if there are no other valid contours
         if 0.0 in cs2.levels:
             print("uh has zero contour for some reason. Hide it")
@@ -222,7 +228,7 @@ if args.fill == 'crefuh':
         if debug: print("dashed contour UH <",min_uh_threshold)
         negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=min_uh_threshold*np.arange(6,0,-1), colors='black', 
                 linestyles='dashed', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
-        ax.set_title(ax.get_title() + " UH<"+str(-min_uh_threshold) +" "+ min_uh.units)
+        fineprint0 += "UH<"+str(-min_uh_threshold) +" "+ min_uh.units + " " 
         if 0.0 in negUH2.levels:
             print("neg uh has a zero contour. Hide it")
             if debug:
@@ -258,24 +264,21 @@ if barb:
     cs2 = ax.barbs(to_np(wrflon)[::skip*stride,::skip*stride], to_np(wrflat)[::skip*stride,::skip*stride], 
             to_np(u)[::skip*stride,::skip*stride], to_np(v)[::skip*stride,::skip*stride], color='black', 
             alpha=alpha, length=3.9, linewidth=0.25, sizes={'emptybarb':0.05}, transform=cartopy.crs.PlateCarree())
-    ax.set_title(ax.get_title() + " wind barb (" + u.units + ")", fontsize="small")
+    fineprint0 += "wind barb (" + u.units + ") "
 
 
-# Empty string placeholder for fine print in lower left corner of image.
-fineprint = plt.annotate(s="", xy=(0,5), xycoords=('axes fraction', 'figure pixels'), va="bottom", fontsize=4)
-
-for lon,lat,stepid,trackid,u,v,valid in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID,df.Storm_Motion_U,df.Storm_Motion_V,df.Valid_Date):
+for lon,lat,stepid,trackid,u,v in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID,df.Storm_Motion_U,df.Storm_Motion_V):
 
     pngfile = odir + '/' + stepid + "_" + "{:+1.0f}".format(timeshift) + ".png"
 
-    string  = os.path.realpath(wrfout)
+    fineprint = fineprint0 + "\n" + os.path.realpath(wrfout)
     if not no_mask:
-        string += "\n"+patches
-    string += "\ntrack "+trackid
-    string += "\ncreated "+str(datetime.datetime.now(tz=None)).split('.')[0]
+        fineprint += "\n"+patches
+    fineprint += "\ntrack "+trackid
+    fineprint += "\ncreated "+str(datetime.datetime.now(tz=None)).split('.')[0]
 
     if not no_fineprint: # show fineprint
-        fineprint.set_text(string)
+        fineprint_obj.set_text(fineprint)
 
     # If png already exists skip this file
     if not force_new and os.path.isfile(pngfile):
@@ -294,7 +297,7 @@ for lon,lat,stepid,trackid,u,v,valid in zip(df.Centroid_Lon, df.Centroid_Lat,df.
         ip = np.where(matches)[0][0]
         if not any(matches):
             pdb.set_trace()
-        tolerance = 0.015 # TODO: figure out why centroid of csv object and nc patch differ at all
+        tolerance = 0.02 # TODO: figure out why centroid of csv object and nc patch differ at all
         if np.abs(lon-mask_centroid_lons[ip]) > tolerance:
             print(stepid,lon,mask_centroid_lons[ip])
         if np.abs(lat-mask_centroid_lats[ip]) > tolerance:
@@ -302,7 +305,7 @@ for lon,lat,stepid,trackid,u,v,valid in zip(df.Centroid_Lon, df.Centroid_Lat,df.
         mask = masks[ip]
         mlon = mlons[ip]
         mlat = mlats[ip]
-        mcntr = ax.contour(mlon, mlat, mask, levels=[0,10], colors='white', alpha=0.75, 
+        mcntr = ax.contour(mlon, mlat, mask, levels=[0,10], colors='black', alpha=0.6, 
                 linewidths=2., linestyles="solid", zorder=2, transform=cartopy.crs.PlateCarree())
 
     # Update axes labels (distance along axes).
@@ -327,5 +330,8 @@ for lon,lat,stepid,trackid,u,v,valid in zip(df.Centroid_Lon, df.Centroid_Lat,df.
 
 if debug: pdb.set_trace()
 plt.close(fig)
-print("Run this command to create a montage")
-print("montage -crop 458x458+345+98 -geometry 70% -tile 5x4 d01*png t.png")
+print("to sort -2 -1 +0 +1 +2 numerically:")
+print("ls d01*png | sort -g -k 1."+str(len(stepid)+2))
+print("to trim whitespace:")
+#print("convert -crop 490x486+311+100 in.png out.png")
+print("convert -crop 745x776+238+121 in.png out.png")
