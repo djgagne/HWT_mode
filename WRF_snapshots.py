@@ -180,7 +180,7 @@ cfill = ax.contourf(to_np(wrflon[::stride,::stride]), to_np(wrflat[::stride,::st
         cmap=cmap, transform=cartopy.crs.PlateCarree() )
 
 # Color bar
-cb = plt.colorbar(cfill, ax=ax, format='%.0f', label=label+" ("+cvar.units+")", shrink=0.52, orientation='horizontal')
+cb = plt.colorbar(cfill, ax=ax, format='%.0f', shrink=0.52, orientation='horizontal')
 cb.set_label(label+" ("+cvar.units+")", fontsize="small")
 if len(levels) < 9:
     # label every level if there is room.
