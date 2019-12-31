@@ -167,6 +167,9 @@ fieldinfo = {
 
 # Another fieldinfo dictionary for nsc files. 
 nsc = fieldinfo
+nsc['cref']['fname'] = ['REFL_COM']
+nsc['cref_contour'] = nsc['cref'] # cref_contour same as cref, except intenser levels.
+nsc['cref_contour']['levels'] = [20,30,40,50,60,70,80]
 nsc['crefuh']['fname'] = ['REFL_COM', 'UP_HELI_MAX', 'UP_HELI_MIN']
 nsc['crefuh']['max_threshold'] = 50
 nsc['crefuh']['min_threshold'] = -50
