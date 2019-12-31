@@ -5,7 +5,7 @@
 
 set force=0 # clobber old gifs?
 set debug=0
-set p=""
+set p="" # replaced by argument matching d0[0-9]_*[0-9]
 
 while ("$1" != "")
 	if ("$1" =~ d0[0-9]_*[0-9]) set p="$1"
@@ -30,7 +30,7 @@ if ("$p" != "") then
     set h=`echo $p | cut -f2 -d- | cut -c6-7` 
     set h1=`echo $p | cut -f2 -d- | cut -c16-17`
     set fhr=`expr $h + $h1`
-    set g="745x776+238+121"
+    set g="980x1012+390+173"
     if($fhr<35)then 
         convert -crop $g +repage -loop 0 -delay 50 ${p}_-2.png ${p}_-1.png ${p}_+0.png ${p}_+1.png ${p}_+2.png ${p}_+2.png $p.gif
     else
