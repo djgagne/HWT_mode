@@ -26,12 +26,13 @@ parser = argparse.ArgumentParser(description = "Plot WRF and SPC storm reports",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-f", "--fill", type=str, default= 'crefuh', help='netCDF variable name for contour fill field')
 parser.add_argument("-b", "--barb", choices=["wind10m"], type=str, default="wind10m", help='wind barbs')
+parser.add_argument("-c", "--contour", type=str, default=None, help='contour field')
 parser.add_argument("-o", "--outdir", type=str, default='.', help="name of output path")
 parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side in km", 
         default=[175.,175.,175.,175.]) 
 parser.add_argument("--timeshift", type=int, default=0, help="hours to shift background field") 
-parser.add_argument("--arrow", action='store_true', help="Add storm motion vector")
-parser.add_argument("--no-fineprint", action='store_true', help="Don't write details at bottom of image")
+parser.add_argument("--arrow", action='store_true', help="Add storm motion vector from hagelslag")
+parser.add_argument("--no-fineprint", action='store_true', help="Don't write image details at bottom")
 parser.add_argument("--force_new", action='store_true', help="overwrite any old outfile, if it exists")
 parser.add_argument("--no-counties", action='store_true', help="Don't draw county borders (can be slow)")
 parser.add_argument("--no-mask", action='store_true', help="Don't draw object mask")
@@ -49,10 +50,11 @@ parser.add_argument("valid_time", type=lambda d: datetime.datetime.strptime(d, '
 parser.add_argument("-d", "--debug", action='store_true')
 
 
-# Assign arguments to simple-named variables
+# Assign arguments to simply-named variables
 args = parser.parse_args()
-fill         = args.fill
 barb         = args.barb
+contour      = args.contour
+fill         = args.fill
 odir         = args.outdir
 padding      = args.padding
 timeshift    = args.timeshift
@@ -143,6 +145,8 @@ cvar = getvar(wrfnc,fill)
 
 if fill == "RAINNC": # with all the possible fields and unit conversions, this could get messy with all the if-blocks.
     cvar.metpy.convert_units('inches')
+if fill == "T2": # with all the possible fields and unit conversions, this could get messy with all the if-blocks.
+    cvar.metpy.convert_units('degF')
 
 if hasattr(cvar, 'long_name'):
     label = cvar.long_name
@@ -151,13 +155,11 @@ elif hasattr(cvar, 'description'):
 
 wrflat, wrflon = latlon_coords(cvar)
 # get cartopy mapping object
-if debug:
-    print("get_cartopy...")
+if debug: print("get_cartopy...")
 WRF_proj = get_cartopy(cvar)
 
-fig = plt.figure(figsize=(7,7.5))
-if debug:
-    print("plt.axes()")
+fig = plt.figure(figsize=(10,10))
+if debug: print("plt.axes()")
 ax = plt.axes(projection=WRF_proj)
 ax.add_feature(cartopy.feature.STATES.with_scale('10m'), linewidth=0.35, alpha=0.55)
 
@@ -165,12 +167,12 @@ ax.add_feature(cartopy.feature.STATES.with_scale('10m'), linewidth=0.35, alpha=0
 ax.set_title(history_time.strftime("%b %HZ"))
 
 # Empty fineprint placeholder in lower left corner of image.
-fineprint0 = ''
+fineprint0 = 'fill '+fill+" ("+cvar.units+") "
 fineprint_obj = plt.annotate(s=fineprint0, xy=(0,5), xycoords=('axes fraction', 'figure pixels'), va="bottom", fontsize=4)
 
 if cvar.min() > levels[-1] or cvar.max() < levels[0]:
     print('levels',levels,'out of range of cvar', cvar.values.min(), cvar.values.max())
-    sys.exit(2)
+    sys.exit(1)
 if debug: 
     print('levels:',levels, 'cmap:', cmap.colors)
 
@@ -182,7 +184,7 @@ cfill = ax.contourf(to_np(wrflon[::stride,::stride]), to_np(wrflat[::stride,::st
 # Color bar
 cb = plt.colorbar(cfill, ax=ax, format='%.0f', shrink=0.52, orientation='horizontal')
 cb.set_label(label+" ("+cvar.units+")", fontsize="small")
-if len(levels) < 9:
+if len(levels) < 10:
     # label every level if there is room.
     cb.set_ticks(levels)
 cb.ax.tick_params(labelsize='xx-small')
@@ -266,6 +268,22 @@ if barb:
             alpha=alpha, length=3.9, linewidth=0.25, sizes={'emptybarb':0.05}, transform=cartopy.crs.PlateCarree())
     fineprint0 += "wind barb (" + u.units + ") "
 
+if contour:
+    # Get netCDF variable name appropriate for requested variable from fieldinfo module.
+    info = fieldinfo.nsc[contour]
+    if debug:
+        print("found nsc in fieldinfo.py. Using",info)
+    cvar = getvar(wrfnc, info['fname'][0])
+    levels = info['levels']
+    # could use levels from fieldinfo module, but default is often less cluttered.
+    alpha=0.4
+
+    if debug: print("starting "+contour+" contours")
+    cr = ax.contour(to_np(wrflon)[::stride,::stride], to_np(wrflat)[::stride,::stride], 
+            cvar[::stride,::stride], levels=levels, colors='black', alpha=alpha, 
+            linewidths=0.75, transform=cartopy.crs.PlateCarree())
+    clab = ax.clabel(cr, inline=False, fmt='%.0f', fontsize=6)
+    fineprint0 += "contour "+contour+" (" + cvar.units + ") "
 
 for lon,lat,stepid,trackid,u,v in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID,df.Storm_Motion_U,df.Storm_Motion_V):
 
@@ -297,7 +315,7 @@ for lon,lat,stepid,trackid,u,v in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_I
         ip = np.where(matches)[0][0]
         if not any(matches):
             pdb.set_trace()
-        tolerance = 0.02 # TODO: figure out why centroid of csv object and nc patch differ at all
+        tolerance = 0.025 # TODO: figure out why centroid of csv object and nc patch differ at all
         if np.abs(lon-mask_centroid_lons[ip]) > tolerance:
             print(stepid,lon,mask_centroid_lons[ip])
         if np.abs(lat-mask_centroid_lats[ip]) > tolerance:
@@ -333,5 +351,4 @@ plt.close(fig)
 print("to sort -2 -1 +0 +1 +2 numerically:")
 print("ls d01*png | sort -g -k 1."+str(len(stepid)+2))
 print("to trim whitespace:")
-#print("convert -crop 490x486+311+100 in.png out.png")
-print("convert -crop 745x776+238+121 in.png out.png")
+print("convert -crop 980x1012+390+173 in.png out.png")
