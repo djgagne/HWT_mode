@@ -17,6 +17,8 @@ from wrf import to_np, getvar, get_cartopy, latlon_coords
 from metpy.units import units
 from netCDF4 import Dataset
 import cartopy
+import matplotlib
+matplotlib.use("Agg") # allows dav slurm jobs
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
@@ -101,7 +103,14 @@ df = pd.read_csv(tracks, parse_dates=['Run_Date', 'Valid_Date'])
 # Throw out everything except requested valid times.
 df = df[df.Valid_Date == valid_time]
 if df.empty:
-    print("Requested valid time",valid_time,"not in",tracks)
+    print("csv track step file", tracks, " has no objects at requested valid time",valid_time,". That is probably fine.")
+    sys.exit(0)
+
+# List of all png files that will be created.
+pngfiles = odir + '/' + df.Step_ID + "_" + "{:+1.0f}".format(timeshift) + ".png"
+if all([os.path.isfile(p) for p in pngfiles]) and not force_new:
+    # Exit if pngs all already exist and force_new option was not used. 
+    print(initial_time, valid_time, "{:+1.0f}".format(timeshift) +"h finished. Moving on.")
     sys.exit(0)
 
 if not no_mask:
@@ -118,10 +127,6 @@ if not no_mask:
     pnc.close()
 
 
-# Get wrfout filename
-history_time = valid_time + datetime.timedelta(hours=timeshift)
-wrfout = idir + '/' + initial_time.strftime('%Y%m%d%H') + '/' + history_time.strftime('diags_d01_%Y-%m-%d_%H_%M_%S.nc')
-
 # Get color map, levels, and netCDF variable name appropriate for requested variable (from fieldinfo module).
 info = fieldinfo.nsc[fill]
 if debug:
@@ -130,8 +135,11 @@ cmap = colors.ListedColormap(info['cmap'])
 levels = info['levels']
 fill = info['fname'][0]
 
-if debug:
-    print("About to open "+wrfout)
+# Get wrfout filename
+history_time = valid_time + datetime.timedelta(hours=timeshift)
+wrfout = idir + '/' + initial_time.strftime('%Y%m%d%H') + '/' + history_time.strftime('diags_d01_%Y-%m-%d_%H_%M_%S.nc')
+
+if debug: print("About to open "+wrfout)
 wrfnc = Dataset(wrfout,"r")
 if fill not in wrfnc.variables:
     print("variable "+ fill + " not found")
@@ -143,10 +151,8 @@ if debug:
     print("getvar...")
 cvar = getvar(wrfnc,fill)
 
-if fill == "RAINNC": # with all the possible fields and unit conversions, this could get messy with all the if-blocks.
-    cvar.metpy.convert_units('inches')
-if fill == "T2": # with all the possible fields and unit conversions, this could get messy with all the if-blocks.
-    cvar.metpy.convert_units('degF')
+if 'units' in info.keys():
+    cvar.metpy.convert_units(info['units'])
 
 if hasattr(cvar, 'long_name'):
     label = cvar.long_name
@@ -274,6 +280,8 @@ if contour:
     if debug:
         print("found nsc in fieldinfo.py. Using",info)
     cvar = getvar(wrfnc, info['fname'][0])
+    if 'units' in info.keys():
+        cvar.metpy.convert_units(info['units'])
     levels = info['levels']
     # could use levels from fieldinfo module, but default is often less cluttered.
     alpha=0.4
@@ -285,9 +293,7 @@ if contour:
     clab = ax.clabel(cr, inline=False, fmt='%.0f', fontsize=6)
     fineprint0 += "contour "+contour+" (" + cvar.units + ") "
 
-for lon,lat,stepid,trackid,u,v in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID,df.Storm_Motion_U,df.Storm_Motion_V):
-
-    pngfile = odir + '/' + stepid + "_" + "{:+1.0f}".format(timeshift) + ".png"
+for lon,lat,stepid,trackid,u,v,pngfile in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID,df.Storm_Motion_U,df.Storm_Motion_V,pngfiles):
 
     fineprint = fineprint0 + "\n" + os.path.realpath(wrfout)
     if not no_mask:
@@ -298,10 +304,6 @@ for lon,lat,stepid,trackid,u,v in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_I
     if not no_fineprint: # show fineprint
         fineprint_obj.set_text(fineprint)
 
-    # If png already exists skip this file
-    if not force_new and os.path.isfile(pngfile):
-        print(pngfile + " exists. Skipping. Use --force_new option to override.")
-        continue
     x, y = WRF_proj.transform_point(lon, lat, cartopy.crs.PlateCarree()) # Transform lon/lat to x and y (in meters) in WRF projection.
     ax.set_extent([x-padding[0]*1000., x+padding[1]*1000., y-padding[2]*1000., y+padding[3]*1000.], crs=WRF_proj)
 
