@@ -29,6 +29,7 @@ def readNCLcm(name):
     return rgb.tolist()
 
 
+# TODO: add metpy unit support to list of levels? 
 fieldinfo = {
   # surface and convection-related entries
   'precip'       :{ 'levels' : [0,0.01,0.05,0.1,0.2,0.3,0.4,0.5,0.75,1,1.5,2,2.5,3.0], 'cmap': [readNCLcm('precip2_17lev')[i] for i in (0,1,2,4,5,6,7,8,10,12,13,14,15)], 'fname':['PREC_ACC_NC'] },
@@ -175,6 +176,7 @@ nsc['crefuh']['max_threshold'] = 50
 nsc['crefuh']['min_threshold'] = -50
 nsc['mucape']['fname'] = ['MUCAPE']
 nsc['t2']['fname'] = ['T2']
+nsc['t2']['units'] = 'degF' # 'units' dictionary entry can ensure field and requested contour levels have same units. 
 
 # Combine levels from RAIN, FZRA, ICE, and SNOW for plotting 1-hr accumulated precip for each type. Ahijevych added this
 #fieldinfo['ptypes']['levels'] = [fieldinfo['precip']['levels'][1:],fieldinfo['snow']['levels'],fieldinfo['ice']['levels'],fieldinfo['fzra']['levels']]
