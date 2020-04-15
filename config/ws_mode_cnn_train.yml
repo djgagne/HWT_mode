@@ -1,0 +1,12 @@
+data_path: "/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_COM_ws_nc/"
+patch_radius: 16
+input_variables: ["REFL_1KM_AGL_curr", "U10_curr", "V10_curr"]
+output_variables: ["GRPL_MAX_curr"]
+meta_variables: ["masks", "i", "j", "time", "centroid_lon", "centroid_lat",
+                 "centroid_i", "centroid_j", "track_id", "track_step"]
+train_start_date: "2010-10-01"
+train_end_date: "2014-12-31"
+val_start_date: "2014-01-01"
+val_end_date: "2014-12-31"
+test_start_date: "2015-01-01"
+test_end_date: "2017-06-30"

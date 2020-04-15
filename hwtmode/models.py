@@ -16,7 +16,7 @@ class BaseConvNet(object):
     def __init__(self, min_filters=16, filter_growth_rate=2, filter_width=5, min_data_width=4, pooling_width=2,
                  hidden_activation="relu", output_type="linear",
                  pooling="mean", use_dropout=False, dropout_alpha=0.0, dense_neurons=64,
-                 data_format="channels_first", optimizer="adam", loss="mse", leaky_alpha=0.1, metrics=None,
+                 data_format="channels_last", optimizer="adam", loss="mse", leaky_alpha=0.1, metrics=None,
                  learning_rate=0.0001, batch_size=1024, epochs=10, verbose=0, l2_alpha=0, distributed=False):
         self.min_filters = min_filters
         self.filter_width = filter_width
@@ -130,15 +130,6 @@ class BaseConvNet(object):
             output_size = y.shape[1]
         return x.shape[1:], output_size
 
-    @staticmethod
-    def get_generator_data_shapes(data_gen):
-        inputs, outputs = data_gen.__getitem__(0)
-        if len(outputs.shape) == 1:
-            output_size = 1
-        else:
-            output_size = outputs.shape[1]
-        return inputs.shape[1:], output_size
-
     def fit(self, x, y, val_x=None, val_y=None, build=True, **kwargs):
         """
         Train the neural network.
@@ -153,7 +144,6 @@ class BaseConvNet(object):
             val_data = (val_x, val_y)
         self.model.fit(x, y, batch_size=self.batch_size, epochs=self.epochs, verbose=self.verbose,
                        validation_data=val_data, **kwargs)
-
 
     def predict(self, x):
         preds = self.model.predict(x, batch_size=self.batch_size)
