@@ -1,6 +1,7 @@
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
+from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites
 import argparse
 import yaml
 from os.path import exists, join
@@ -8,6 +9,7 @@ from os import makedirs
 import numpy as np
 import tensorflow as tf
 import pandas as pd
+
 
 def main():
     # Parse arguments
@@ -96,6 +98,16 @@ def main():
                 model_out_path = join(config["out_path"], model_name)
                 models[model_name] = load_conv_net(model_out_path, model_name)
             train_neuron_activations = models[model_name].output_hidden_layer(train_input_scaled)
+            train_saliency = models[model_name].saliency(train_input_scaled)
+            if config["classifier"]:
+                train_neuron_scores = score_neurons(train_labels, train_neuron_activations)
+            else:
+                train_neuron_scores = score_neurons(train_labels, train_neuron_activations, metric="r")
+            plot_neuron_composites(config["out_path"], model_name, train_input_combined, train_neuron_activations,
+                                   train_neuron_scores)
+            plot_saliency_composites(config["out_path"], model_name, train_saliency, train_neuron_activations,
+                                     train_neuron_scores)
+
 
 
     return
