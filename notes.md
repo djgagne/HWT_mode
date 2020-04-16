@@ -4,3 +4,7 @@ Path to patch files: `/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_COM_
 Storm classifier website: https://www2.mmm.ucar.edu/projects/ncar_ensemble/classifymode/
 
 Daily NCAR WRF run: https://www2.mmm.ucar.edu/projects/ncar_ensemble/camviewer/index.html
+
+Realtime forecast directory: /glade/scratch/wrfrt
+
+Object directory: /glade/work/sobash/

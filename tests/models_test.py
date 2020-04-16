@@ -13,8 +13,8 @@ class TestModels(unittest.TestCase):
         bcn = BaseConvNet(min_filters=4, filter_growth_rate=1.5, min_data_width=8,
                           dense_neurons=8, output_type="sigmoid")
         bcn.build_network(self.x_shape, 1)
-        assert bcn.model.layers[1].output.shape[-1] == bcn.min_filters
-        assert bcn.model.layers[-6].output.shape[1] == bcn.min_data_width
+        assert bcn.model_.layers[1].output.shape[-1] == bcn.min_filters
+        assert bcn.model_.layers[-6].output.shape[1] == bcn.min_data_width
         return
 
     def test_saliency(self):

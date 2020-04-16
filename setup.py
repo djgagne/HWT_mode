@@ -9,7 +9,8 @@ requirements = ["numpy",
                 "pyyaml",
                 "tqdm",
                 "netcdf4",
-                "matplotlib"]
+                "matplotlib",
+                "scikit-learn"]
 
 setup(name="hwtmode",
       version="0.1",

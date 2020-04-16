@@ -7,3 +7,4 @@ pyyaml
 tqdm
 netcdf4
 matplotlib
+scikit-learn
