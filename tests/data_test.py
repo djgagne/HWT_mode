@@ -1,4 +1,4 @@
-from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, min_max_inverse_scale
+from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, min_max_inverse_scale, storm_max_value
 import unittest
 from os.path import exists
 
@@ -42,3 +42,8 @@ class TestData(unittest.TestCase):
         self.assertEqual(combined.min(), inverse_data.min())
         self.assertEqual(scaled_data.max(), 1)
         self.assertEqual(scaled_data.min(), 0)
+
+    def test_storm_max_value(self):
+        max_values = storm_max_value(self.output_data[self.output_variable[0]], self.meta_data["masks"])
+        assert len(max_values.shape) == 1
+        assert max_values.max() > 0

@@ -6,8 +6,9 @@ from tqdm import tqdm
 import pandas as pd
 
 
-def load_patch_files(start_date, end_date, patch_dir, input_variables, output_variables, meta_variables,
-                     patch_radius=None):
+def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_variables: list,
+                     output_variables: list, meta_variables: list,
+                     patch_radius=None) -> tuple:
     """
     Iterate through all patch files and load the input and output variables into separate py:class:`xarray.Dataset`
     objects.
@@ -120,5 +121,16 @@ def min_max_inverse_scale(transformed_data, scale_values):
     return inverse
 
 
-def storm_max_value(output_data, masks):
-    return (output_data * masks).max(axis=-1).max(axis=-1).values
+def storm_max_value(output_data: xr.DataArray, masks: xr.DataArray) -> np.ndarray:
+    """
+
+
+    Args:
+        output_data:
+        masks:
+
+    Returns:
+
+    """
+    max_values = (output_data * masks).max(axis=-1).max(axis=-1).values
+    return max_values

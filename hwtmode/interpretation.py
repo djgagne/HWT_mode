@@ -12,20 +12,20 @@ def corr_coef_metric(y_true, y_pred):
 def score_neurons(y_true, neuron_activations, metric="auc"):
     scores = np.zeros(neuron_activations.shape[1], dtype=np.float32)
     if metric == "auc":
-        for i in neuron_activations.shape[1]:
+        for i in range(neuron_activations.shape[1]):
             scores[i] = roc_auc_score(y_true, neuron_activations[:, i])
     elif metric == "r":
-        for i in neuron_activations.shape[1]:
+        for i in range(neuron_activations.shape[1]):
             scores[i] = corr_coef_metric(y_true, neuron_activations[:, i])
     else:
-        for i in neuron_activations.shape[1]:
+        for i in range(neuron_activations.shape[1]):
             scores[i] = roc_auc_score(y_true, neuron_activations[:, i])
     return scores
 
 
 def plot_neuron_composites(out_path, model_name, x_data, neuron_activations, neuron_scores, variable_index=0,
                            composite_size=30,
-                           figsize_scale=2.0, out_format="png", dpi=200, plot_kwargs=None):
+                           figsize_scale=3.0, out_format="png", dpi=200, plot_kwargs=None):
     neuron_ranking = np.argsort(neuron_scores)[::-1]
     if plot_kwargs is None:
         plot_kwargs = {}
@@ -53,7 +53,7 @@ def plot_neuron_composites(out_path, model_name, x_data, neuron_activations, neu
 
 
 def plot_saliency_composites(out_path, model_name, saliency_data, neuron_activations, neuron_scores,
-                             variable_index=0, composite_size=30, figsize_scale=2.0, gaussian_filter_sd=1,
+                             variable_index=0, composite_size=30, figsize_scale=3.0, gaussian_filter_sd=1,
                              out_format="png", dpi=200, plot_kwargs=None):
     neuron_ranking = np.argsort(neuron_scores)[::-1]
     if plot_kwargs is None:

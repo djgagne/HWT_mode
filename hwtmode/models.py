@@ -182,7 +182,7 @@ class BaseConvNet(object):
         model_config_dict = self.model_config()
         model_config_file = join(out_path, "config_" + model_name + ".yml")
         with open(model_config_file, "w") as mcf:
-            yaml.dump(model_config_dict, mcf, dumper=yaml.Dumper)
+            yaml.dump(model_config_dict, mcf, Dumper=yaml.Dumper)
         if self.model_ is not None:
             model_filename = join(out_path, model_name + ".h5")
             self.model_.save(model_filename, save_format="h5")

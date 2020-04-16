@@ -1,0 +1,32 @@
+data_path: "testdata/track_data_ncarstorm_3km_REFL_COM_ws_nc_small/"
+patch_radius: 16
+input_variables: ["REFL_1KM_AGL_curr", "U10_curr", "V10_curr"]
+output_variables: ["UP_HELI_MAX_curr"]
+meta_variables: ["masks", "i", "j", "time", "centroid_lon", "centroid_lat",
+                 "centroid_i", "centroid_j", "track_id", "track_step"]
+train_start_date: "2011-04-26"
+train_end_date: "2011-04-27"
+val_start_date: "2011-04-28"
+val_end_date: "2011-04-28"
+test_start_date: "2011-04-28"
+test_end_date: "2011-04-28"
+out_path: "model_cnn_20200416/"
+classifier: 1
+classifier_threshold: 50
+models:
+  cnn_20200416_000:
+    min_filters: 8
+    filter_width: 3
+    filter_growth_rate: 1.5
+    pooling_width: 2
+    min_data_width: 4
+    output_type: "sigmoid"
+    pooling: "max"
+    loss: "binary_crossentropy"
+    learning_rate: 0.0001
+    batch_size: 16
+    epochs: 40
+    dense_neurons: 16
+    early_stopping: 0
+    verbose: 1
+
