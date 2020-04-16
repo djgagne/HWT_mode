@@ -2,6 +2,7 @@ import xarray as xr
 import numpy as np
 from os.path import exists, join
 from glob import glob
+from tqdm import tqdm
 import pandas as pd
 
 
@@ -36,9 +37,7 @@ def load_patch_files(start_date, end_date, patch_dir, input_variables, output_va
     input_data_list = []
     output_data_list = []
     meta_data_list = []
-    for p, patch_file in enumerate(valid_patch_files):
-        if p % 10 == 0:
-            print(p, patch_file)
+    for p, patch_file in enumerate(tqdm(valid_patch_files, ncols=60)):
         ds = xr.open_dataset(patch_file)
         if patch_radius is not None:
             row_mid = int(np.round(((ds["row"].max() - ds["row"].min()) / 2).values[()]))

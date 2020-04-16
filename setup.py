@@ -1,5 +1,16 @@
 from setuptools import setup
 
+
+requirements = ["numpy",
+                "scipy",
+                "xarray",
+                "pandas",
+                "tensorflow>=2.0.0",
+                "pyyaml",
+                "tqdm",
+                "netcdf4",
+                "matplotlib"]
+
 setup(name="hwtmode",
       version="0.1",
       description="Analyze storm mode with machine learning.",
@@ -8,6 +19,4 @@ setup(name="hwtmode",
       license="MIT",
       url="https://github.com/NCAR/HWT_mode",
       packages=["hwtmode"],
-      install_requires=["numpy",
-                        "xarray",
-                        "pandas"])
+      install_requires=requirements)

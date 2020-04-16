@@ -1,10 +1,13 @@
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, min_max_inverse_scale
 import unittest
+from os.path import exists
 
 
 class TestData(unittest.TestCase):
     def setUp(self) -> None:
         self.patch_path = "../testdata/track_data_ncarstorm_3km_REFL_COM_ws_nc/"
+        if not exists(self.patch_path):
+            self.patch_path = "testdata/track_data_ncarstorm_3km_REFL_COM_ws_nc/"
         self.start_date = "2011-04-25"
         self.end_date = "2011-04-28"
         self.input_variables = ["REFL_1KM_AGL_curr", "U10_curr", "V10_curr"]

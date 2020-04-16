@@ -10,3 +10,23 @@ val_start_date: "2014-01-01"
 val_end_date: "2014-12-31"
 test_start_date: "2015-01-01"
 test_end_date: "2017-06-30"
+out_path: "/glade/work/dgagne/model_cnn_20200416/"
+classifier: 1
+classifier_threshold: 20
+models:
+  cnn_20200416_000:
+    min_filters: 16
+    filter_width: 5
+    filter_growth_rate: 2
+    pooling_width: 2
+    min_data_width: 4
+    output_type: "sigmoid"
+    pooling: "max"
+    loss: "binary_crossentropy"
+    learning_rate: 0.001
+    batch_size: 256
+    epochs: 20
+    dense_neurons: 32
+    early_stopping: 2
+    verbose: 1
+

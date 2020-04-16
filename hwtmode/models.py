@@ -3,9 +3,15 @@ from tensorflow.keras.layers import SpatialDropout2D
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras.losses import mean_squared_error, mean_absolute_error, binary_crossentropy
-from tensorflow.keras.utils import multi_gpu_model
 from tensorflow.keras.regularizers import l2
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.models import load_model
+import tensorflow as tf
 import numpy as np
+from tqdm import trange
+import pandas as pd
+from os.path import join
+import yaml
 
 losses = {"mse": mean_squared_error,
           "mae": mean_absolute_error,
@@ -17,7 +23,7 @@ class BaseConvNet(object):
                  hidden_activation="relu", output_type="linear",
                  pooling="mean", use_dropout=False, dropout_alpha=0.0, dense_neurons=64,
                  data_format="channels_last", optimizer="adam", loss="mse", leaky_alpha=0.1, metrics=None,
-                 learning_rate=0.0001, batch_size=1024, epochs=10, verbose=0, l2_alpha=0, distributed=False):
+                 learning_rate=0.0001, batch_size=1024, epochs=10, verbose=0, l2_alpha=0, early_stopping=False):
         self.min_filters = min_filters
         self.filter_width = filter_width
         self.filter_growth_rate = filter_growth_rate
@@ -37,15 +43,14 @@ class BaseConvNet(object):
         self.leaky_alpha = leaky_alpha
         self.batch_size = batch_size
         self.epochs = epochs
-        self.model = None
-        self.parallel_model = None
         self.l2_alpha = l2_alpha
         if l2_alpha > 0:
-            self.use_l2 = True
+            self.use_l2 = 1
         else:
-            self.use_l2 = False
+            self.use_l2 = 0
         self.verbose = verbose
-        self.distributed = distributed
+        self.early_stopping = early_stopping
+        self.model_ = None
 
     def build_network(self, conv_input_shape, output_size):
         """
@@ -55,7 +60,6 @@ class BaseConvNet(object):
             conv_input_shape (tuple of shape [variable, y, x]): The shape of the input data
             output_size: Number of neurons in output layer.
         """
-        print("Conv input shape", conv_input_shape)
         if self.use_l2:
             reg = l2(self.l2_alpha)
         else:
@@ -63,10 +67,8 @@ class BaseConvNet(object):
         conv_input_layer = Input(shape=conv_input_shape, name="conv_input")
         num_conv_layers = int(np.round((np.log(conv_input_shape[1]) - np.log(self.min_data_width))
                                        / np.log(self.pooling_width)))
-        print(num_conv_layers)
         num_filters = self.min_filters
         scn_model = conv_input_layer
-        print(reg)
         for c in range(num_conv_layers):
             scn_model = Conv2D(num_filters, (self.filter_width, self.filter_width),
                                data_format=self.data_format, kernel_regularizer=reg,
@@ -96,8 +98,7 @@ class BaseConvNet(object):
         elif self.output_type == "sigmoid":
             scn_model = Dense(output_size, kernel_regularizer=reg, name="dense_output")(scn_model)
             scn_model = Activation("sigmoid", name="activation_output")(scn_model)
-        self.model = Model(conv_input_layer, scn_model)
-        print(self.model.summary())
+        self.model_ = Model(conv_input_layer, scn_model)
 
     def compile_model(self):
         """
@@ -107,15 +108,7 @@ class BaseConvNet(object):
             opt = Adam(lr=self.learning_rate)
         else:
             opt = SGD(lr=self.learning_rate, momentum=0.99)
-        self.model.compile(opt, losses[self.loss], metrics=self.metrics)
-
-    def compile_parallel_model(self, num_gpus):
-        self.parallel_model = multi_gpu_model(self.model, num_gpus)
-        if self.optimizer == "adam":
-            opt = Adam(lr=self.learning_rate)
-        else:
-            opt = SGD(lr=self.learning_rate, momentum=0.99)
-        self.parallel_model.compile(opt, losses[self.loss], metrics=self.metrics)
+        self.model_.compile(opt, losses[self.loss], metrics=self.metrics)
 
     @staticmethod
     def get_data_shapes(x, y):
@@ -130,7 +123,7 @@ class BaseConvNet(object):
             output_size = y.shape[1]
         return x.shape[1:], output_size
 
-    def fit(self, x, y, val_x=None, val_y=None, build=True, **kwargs):
+    def fit(self, x, y, val_x=None, val_y=None, build=True, callbacks=None, **kwargs):
         """
         Train the neural network.
         """
@@ -142,12 +135,65 @@ class BaseConvNet(object):
             val_data = None
         else:
             val_data = (val_x, val_y)
-        self.model.fit(x, y, batch_size=self.batch_size, epochs=self.epochs, verbose=self.verbose,
-                       validation_data=val_data, **kwargs)
+        if callbacks is None:
+            callbacks = []
+        if self.early_stopping > 0:
+            callbacks.append(EarlyStopping(patience=self.early_stopping))
+        self.model_.fit(x, y, batch_size=self.batch_size, epochs=self.epochs, verbose=self.verbose,
+                        validation_data=val_data, callbacks=callbacks, **kwargs)
 
     def predict(self, x):
-        preds = self.model.predict(x, batch_size=self.batch_size)
+        preds = self.model_.predict(x, batch_size=self.batch_size)
         if len(preds.shape) == 2:
             if preds.shape[1] == 1:
                 preds = preds.ravel()
         return preds
+
+    def output_hidden_layer(self, x, layer_index=-3):
+        sub_model = Model(self.model_.input, self.model_.layers[layer_index].output)
+        output = sub_model.predict(x, batch_size=self.batch_size)
+        return output
+
+    def saliency(self, x, layer_index=-3, ref_activation=10):
+        saliency_values = np.zeros((self.model_.layers[layer_index].output.shape[-1],
+                                    x.shape[0], x.shape[1],
+                                    x.shape[2], x.shape[3]),
+                                   dtype=np.float32)
+        for s in trange(self.model_.layers[layer_index].output.shape[-1], desc="neurons"):
+            sub_model = Model(self.model_.input, self.model_.layers[layer_index].output[:, s])
+            for i in trange(x.shape[0], desc="examples", leave=False):
+                x_case = tf.Variable(x[i:i + 1])
+                with tf.GradientTape() as tape:
+                    tape.watch(x_case)
+                    act_out = sub_model(x_case)
+                    loss = (ref_activation - act_out) ** 2
+                saliency_values[s, i] = tape.gradient(loss, x_case)
+        return saliency_values
+
+    def model_config(self):
+        all_model_attrs = pd.Series(list(self.__dict__.keys()))
+        config_attrs = all_model_attrs[all_model_attrs.str[-1] != "_"]
+        model_config_dict = {}
+        for attr in config_attrs:
+            model_config_dict[attr] = self.__dict__[attr]
+        return model_config_dict
+
+    def save_model(self, out_path, model_name):
+        model_config_dict = self.model_config()
+        model_config_file = join(out_path, "config_" + model_name + ".yml")
+        with open(model_config_file, "w") as mcf:
+            yaml.dump(model_config_dict, mcf, dumper=yaml.Dumper)
+        if self.model_ is not None:
+            model_filename = join(out_path, model_name + ".h5")
+            self.model_.save(model_filename, save_format="h5")
+        return
+
+
+def load_conv_net(model_path, model_name):
+    model_config_file = join(model_path, "config_" + model_name + ".yml")
+    with open(model_config_file, "r") as mcf:
+        model_config_dict = yaml.load(mcf, Loader=yaml.Loader)
+    conv_net = BaseConvNet(**model_config_dict)
+    model_filename = join(model_path, model_name + ".h5")
+    conv_net.model_ = load_model(model_filename)
+    return conv_net
