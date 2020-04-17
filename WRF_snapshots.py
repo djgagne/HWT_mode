@@ -27,7 +27,7 @@ import matplotlib.colors as colors
 parser = argparse.ArgumentParser(description = "Plot WRF and SPC storm reports",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-f", "--fill", type=str, default= 'crefuh', help='netCDF variable name for contour fill field')
-parser.add_argument("-b", "--barb", choices=["wind10m"], type=str, default="wind10m", help='wind barbs')
+parser.add_argument("-b", "--barb", choices=["shr06", "wind10m"], type=str, default="wind10m", help='wind barbs')
 parser.add_argument("-c", "--contour", type=str, default=None, help='contour field')
 parser.add_argument("-o", "--outdir", type=str, default='.', help="name of output path")
 parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side in km", 
@@ -40,7 +40,7 @@ parser.add_argument("--no-counties", action='store_true', help="Don't draw count
 parser.add_argument("--no-mask", action='store_true', help="Don't draw object mask")
 parser.add_argument('-i', "--idir", type=str, default="/glade/p/mmm/parc/sobash/NSC/3KM_WRF_POST_12sec_ts", 
         help="path to WRF output files")
-parser.add_argument('-s', "--stride", type=int, default=1, help="speed things up with stride>1")
+parser.add_argument('-s', "--stride", type=int, default=1, help="plot every stride points. speed things up with stride>1")
 parser.add_argument('-t', "--trackdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_csv", 
         help="path to hagelslag track-step files")
 parser.add_argument("--patchdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_nc", 
@@ -106,11 +106,22 @@ if df.empty:
     print("csv track step file", tracks, " has no objects at requested valid time",valid_time,". That is probably fine.")
     sys.exit(0)
 
+# Throw out weak UH objects
+good_UH = 25
+igood_UH = (df['UP_HELI_MAX_max'] >= good_UH) | (df['UP_HELI_MIN_min'].abs() >= good_UH)
+print("ignoring",(~igood_UH).sum(),"object with UH <",good_UH)
+df = df[igood_UH]
+if df.empty:
+    print("csv track step file", tracks, " has no good UH objects at requested valid time",valid_time,". That is probably fine.")
+    sys.exit(0)
+
+
+
 # List of all png files that will be created.
 pngfiles = odir + '/' + df.Step_ID + "_" + "{:+1.0f}".format(timeshift) + ".png"
 if all([os.path.isfile(p) for p in pngfiles]) and not force_new:
     # Exit if pngs all already exist and force_new option was not used. 
-    print(initial_time, valid_time, "{:+1.0f}".format(timeshift) +"h finished. Moving on.")
+    print(initial_time, valid_time, "{:+1.0f}".format(timeshift) +"h",fill,"finished. Moving on.")
     sys.exit(0)
 
 if not no_mask:
