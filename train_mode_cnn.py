@@ -58,10 +58,10 @@ def main():
             labels[mode] = np.where(out_max[mode] >= config["classifier_threshold"], 1, 0)
         else:
             labels[mode] = out_max[mode]
-    scale_values["train"].to_csv(join(config["out_path"], "scale_values.csv"),
-                                 index_label="variable")
     if not exists(config["out_path"]):
         makedirs(config["out_path"])
+    scale_values["train"].to_csv(join(config["out_path"], "scale_values.csv"),
+                                 index_label="variable")
     if "get_visible_devices" in dir(tf.config.experimental):
         gpus = tf.config.experimental.get_visible_devices("GPU")
     else:
