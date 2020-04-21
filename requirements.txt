@@ -1,0 +1,10 @@
+numpy
+scipy
+xarray
+pandas
+tensorflow>=2.0.0
+pyyaml
+tqdm
+netcdf4
+matplotlib
+scikit-learn
