@@ -32,7 +32,9 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
     patch_dates = pd.to_datetime(date_strings)
     start_date_stamp = pd.Timestamp(start_date)
     end_date_stamp = pd.Timestamp(end_date)
-    valid_patch_files = patch_files[(patch_dates >= start_date_stamp) & (patch_dates <= end_date_stamp)]
+    date_filter = (patch_dates >= start_date_stamp) & (patch_dates <= end_date_stamp)
+    valid_patch_files = patch_files[date_filter]
+    valid_patch_dates = patch_dates[date_filter]
     if len(valid_patch_files) == 0:
         raise FileNotFoundError("No patch files found in " + patch_dir)
     input_data_list = []
@@ -40,6 +42,8 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
     meta_data_list = []
     for p, patch_file in enumerate(tqdm(valid_patch_files, ncols=60)):
         ds = xr.open_dataset(patch_file)
+        ds["run_date"] = xr.DataArray([valid_patch_dates.values[p]] * ds.dims["p"],
+                                         dims=("p",), name="run_date")
         if patch_radius is not None:
             row_mid = int(np.round(((ds["row"].max() - ds["row"].min()) / 2).values[()]))
             col_mid = int(np.round(((ds["col"].max() - ds["col"].min()) / 2).values[()]))
@@ -52,12 +56,24 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
             input_data_list.append(ds[input_variables].compute())
             output_data_list.append(ds[output_variables].compute())
             meta_data_list.append(ds[meta_variables].compute())
-
         ds.close()
     input_data = xr.concat(input_data_list, dim="p")
     output_data = xr.concat(output_data_list, dim="p")
     meta_data = xr.concat(meta_data_list, dim="p")
+    input_data["p"] = np.arange(input_data["p"].size)
+    output_data["p"] = np.arange(output_data["p"].size)
+    meta_data["p"] = np.arange(meta_data["p"].size)
     return input_data, output_data, meta_data
+
+
+def get_meta_scalars(meta_data):
+    meta_vars = list(meta_data.data_vars.keys())
+    scalar_vars = []
+    for meta_var in meta_vars:
+        if meta_data[meta_var].dims == ("p",):
+            scalar_vars.append(meta_var)
+    print(scalar_vars)
+    return meta_data[scalar_vars].to_dataframe()
 
 
 def combine_patch_data(patch_data, variables):
@@ -81,11 +97,11 @@ def min_max_scale(patch_data, scale_values=None):
     Rescale the each variable in the combined DataArray to range from 0 to 1.
 
     Args:
-        patch_data:
-        scale_values:
+        patch_data: Input data arranged in (p, rol, col, var_name) dimensions
+        scale_values: pandas.DataFrame containing min and max values for each variable.
 
     Returns:
-
+        transformed: patch_data rescaled from 0 to 1
     """
     fit = False
     if scale_values is None:

@@ -10,6 +10,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import trange
 import pandas as pd
+import xarray as xr
 from os.path import join
 import yaml
 
@@ -19,11 +20,42 @@ losses = {"mse": mean_squared_error,
 
 
 class BaseConvNet(object):
+    """
+    Convolutional Neural Network consisting of sequential convolution and pooling layers. The class is built on
+    Tensorflow 2/Keras under the hood but uses the scikit-learn design paradigm to enable greater flexibility in
+    evaluating hyperparameters.
+
+    Attributes:
+        min_filters (int): Minimum number of convolutional filters
+        filter_growth_rate (float): Factor to scale filter count after each layer.
+        filter_width (int): Width of square convolutional filter.
+        min_data_width (int): Output of conv->pooling layer combo is flattened after the data width reaches this
+            threshold.
+        pooling_width (int): Factor by which pooling should reduce the spatial dimensions of the input.
+        hidden_activation (str): Activation function used after each convolution and dense hidden layer. leaky produces leaky relu
+        output_type: (str): Either linear (regression), sigmoid (binary classification), or softmax (multiclass)
+        pooling (str): Either max or mean
+        use_dropout (bool): If True or 1, include SpatialDropout and regular Dropout layers
+        dropoout_alpha (float): Dropout relative frequency between 0 and 1.
+        dense_neurons (int): Number of neurons in dense hidden layer. Used as information bottleneck for interpretation.
+        data_format (str): channels_last (default) or channels_first.
+        optimizer (str): Supports adam or sgd
+        loss (str): Supports mse, mae, or binary_crossentropy
+        leaky_alpha (float): If leaky activation is used, this controls the scaling factor for the leaky ReLU
+        metrics (list): List of additional metrics to calculate during training.
+        learning_rate (float): Learning rate for optimizer
+        batch_size (int): Number of examples per batch
+        verbose (int): Level of verbosity in fit loop. 1 results in a progress bar and 2 prints loss for each batch.
+        l2_alpha (float): if l2_alpha > 0 then l2 regularization with strength l2_alpha is used.
+        early_stopping (int): If > 0, then early stopping of training is triggered when validation loss does not change
+            for early_stopping epochs.
+
+    """
     def __init__(self, min_filters=16, filter_growth_rate=2, filter_width=5, min_data_width=4, pooling_width=2,
                  hidden_activation="relu", output_type="linear",
                  pooling="mean", use_dropout=False, dropout_alpha=0.0, dense_neurons=64,
                  data_format="channels_last", optimizer="adam", loss="mse", leaky_alpha=0.1, metrics=None,
-                 learning_rate=0.0001, batch_size=1024, epochs=10, verbose=0, l2_alpha=0, early_stopping=False):
+                 learning_rate=0.0001, batch_size=1024, epochs=10, verbose=0, l2_alpha=0, early_stopping=0, **kwargs):
         self.min_filters = min_filters
         self.filter_width = filter_width
         self.filter_growth_rate = filter_growth_rate
@@ -92,19 +124,15 @@ class BaseConvNet(object):
             scn_model = LeakyReLU(self.leaky_alpha, name="hidden_dense_activation")(scn_model)
         else:
             scn_model = Activation(self.hidden_activation, name="hidden_dense_activation")(scn_model)
-        if self.output_type == "linear":
-            scn_model = Dense(output_size, kernel_regularizer=reg, name="dense_output")(scn_model)
-            scn_model = Activation("linear", name="activation_output")(scn_model)
-        elif self.output_type == "sigmoid":
-            scn_model = Dense(output_size, kernel_regularizer=reg, name="dense_output")(scn_model)
-            scn_model = Activation("sigmoid", name="activation_output")(scn_model)
+        scn_model = Dense(output_size, name="dense_output")(scn_model)
+        scn_model = Activation(self.output_type, name="activation_output")(scn_model)
         self.model_ = Model(conv_input_layer, scn_model)
 
     def compile_model(self):
         """
         Compile the model in tensorflow with the right optimizer and loss function.
         """
-        if self.optimizer == "adam":
+        if self.optimizer.lower() == "adam":
             opt = Adam(lr=self.learning_rate)
         else:
             opt = SGD(lr=self.learning_rate, momentum=0.99)
@@ -150,11 +178,32 @@ class BaseConvNet(object):
         return preds
 
     def output_hidden_layer(self, x, layer_index=-3):
+        """
+        Chop the end off the neural network and capture the output from the specified layer index
+
+        Args:
+            x: input data
+            layer_index (int): list index of the layer being output.
+
+        Returns:
+            output: array containing output of that layer for each example.
+        """
         sub_model = Model(self.model_.input, self.model_.layers[layer_index].output)
         output = sub_model.predict(x, batch_size=self.batch_size)
         return output
 
     def saliency(self, x, layer_index=-3, ref_activation=10):
+        """
+        Output the gradient of input field with respect to each neuron in the specified layer.
+
+        Args:
+            x:
+            layer_index:
+            ref_activation: Reference activation value for loss function.
+
+        Returns:
+
+        """
         saliency_values = np.zeros((self.model_.layers[layer_index].output.shape[-1],
                                     x.shape[0], x.shape[1],
                                     x.shape[2], x.shape[3]),
@@ -162,13 +211,15 @@ class BaseConvNet(object):
         for s in trange(self.model_.layers[layer_index].output.shape[-1], desc="neurons"):
             sub_model = Model(self.model_.input, self.model_.layers[layer_index].output[:, s])
             for i in trange(x.shape[0], desc="examples", leave=False):
-                x_case = tf.Variable(x[i:i + 1])
+                x_case = tf.Variable(x.values[i:i + 1])
                 with tf.GradientTape() as tape:
                     tape.watch(x_case)
                     act_out = sub_model(x_case)
                     loss = (ref_activation - act_out) ** 2
                 saliency_values[s, i] = tape.gradient(loss, x_case)
-        return saliency_values
+        saliency_da = xr.DataArray(saliency_values, dims=("neuron", "p", "row", "col", "var_name"),
+                                   coords=x.coords, name="saliency")
+        return saliency_da
 
     def model_config(self):
         all_model_attrs = pd.Series(list(self.__dict__.keys()))
