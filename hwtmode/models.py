@@ -8,7 +8,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import load_model
 import tensorflow as tf
 import numpy as np
-from tqdm import trange
+from tqdm import trange, tqdm
 import pandas as pd
 import xarray as xr
 from os.path import join
@@ -210,13 +210,14 @@ class BaseConvNet(object):
                                    dtype=np.float32)
         for s in trange(self.model_.layers[layer_index].output.shape[-1], desc="neurons"):
             sub_model = Model(self.model_.input, self.model_.layers[layer_index].output[:, s])
-            for i in trange(x.shape[0], desc="examples", leave=False):
-                x_case = tf.Variable(x.values[i:i + 1])
+            batch_indices = np.append(np.arange(0, x.shape[0], self.batch_size), x.shape[0])
+            for b, batch_index in enumerate(tqdm(batch_indices[:-1], desc="batch examples", leave=False)):
+                x_case = tf.Variable(x.values[batch_index:batch_indices[b + 1]])
                 with tf.GradientTape() as tape:
                     tape.watch(x_case)
                     act_out = sub_model(x_case)
                     loss = (ref_activation - act_out) ** 2
-                saliency_values[s, i] = tape.gradient(loss, x_case)
+                saliency_values[s, batch_index:batch_indices[b + 1]] = tape.gradient(loss, x_case)
         saliency_da = xr.DataArray(saliency_values, dims=("neuron", "p", "row", "col", "var_name"),
                                    coords=x.coords, name="saliency")
         return saliency_da

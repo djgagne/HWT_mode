@@ -52,7 +52,7 @@ def plot_neuron_composites(out_path, model_desc, x_data, neuron_activations, neu
     if pc is not None:
         cb_ax = fig.add_axes(colorbar_loc)
         cbar = fig.colorbar(pc, cax=cb_ax)
-    fig.suptitle(model_desc.replace("_", " ") + " Neuron Example Composites")
+    fig.suptitle(model_desc.replace("_", " ") + " " + variable_name + " Neuron Example Composites")
     plt.savefig(join(out_path, f"neuron_composite_{variable_name}_{model_desc}.{out_format}"),
                 dpi=dpi, bbox_inches="tight")
     plt.close()
@@ -88,7 +88,7 @@ def plot_saliency_composites(out_path, model_name, saliency_data, neuron_activat
     if pc is not None:
         cb_ax = fig.add_axes(colorbar_loc)
         cbar = fig.colorbar(pc, cax=cb_ax)
-    fig.suptitle(model_name.replace("_", " ") + " Saliency Composites")
+    fig.suptitle(model_name.replace("_", " ") + " " + variable_name + " Saliency Composites")
     plt.savefig(join(out_path, f"saliency_composite_{variable_name}_{model_name}.{out_format}"),
                 dpi=dpi, bbox_inches="tight")
     plt.close()
