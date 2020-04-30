@@ -10,7 +10,7 @@ val_start_date: "2014-01-01"
 val_end_date: "2014-12-31"
 test_start_date: "2015-01-01"
 test_end_date: "2017-06-30"
-out_path: "/glade/work/dgagne/model_cnn_20200421/"
+out_path: "/glade/work/dgagne/mode_cnn_20200421/"
 classifier: 1
 classifier_threshold: 50
 models:
