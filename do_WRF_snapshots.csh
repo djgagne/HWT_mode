@@ -15,7 +15,7 @@ if ("$2" !~ 20????????) then
 endif
 set iyyyymmddhh=$2
 
-set idir=/glade/scratch/$USER
+set idir=/glade/scratch/ahijevyc
 set tdir=$idir/track_data_ncarstorm_3km_REFL_COM_${segmentation_method}_csv
 set pdir=$idir/track_data_ncarstorm_3km_REFL_COM_${segmentation_method}_nc
 set odir=/glade/scratch/$USER/`basename $tdir`/$iyyyymmddhh # output to user's scratch directory
@@ -31,9 +31,9 @@ foreach t (-2 -1 0 1 2)
         # format date recognizes - it recognizes yyyymmdd but not yyyymmddhh.
         set iso="$iyyyy-$imm-${idd}T${ihh}:00+00:00"
         set valid=`date -u --date "$iso +${fhr}hours" +%Y%m%d%H`
-        python ~/bin/WRF_snapshots.py $iyyyymmddhh $valid --fill crefuh                                     --outdir $odir         --time $t --track $tdir --patch $pdir
-        python ~/bin/WRF_snapshots.py $iyyyymmddhh $valid --fill t2 --contour cref_contour                  --outdir $odir/t2      --time $t --track $tdir --patch $pdir
-        python ~/bin/WRF_snapshots.py $iyyyymmddhh $valid --fill mucape --contour cref_contour --barb shr06 --outdir $odir/capeshr --time $t --track $tdir --patch $pdir
+        python WRF_snapshots.py $iyyyymmddhh $valid --no-counties --fill crefuh                                     --outdir $odir         --time $t --track $tdir --patch $pdir
+        python WRF_snapshots.py $iyyyymmddhh $valid --no-counties --fill t2 --contour=cref_contour       --outdir $odir/t2      --time $t --track $tdir --patch $pdir
+        python WRF_snapshots.py $iyyyymmddhh $valid --no-counties --fill mucape --barb shr06 --outdir $odir/capeshr --time $t --track $tdir --patch $pdir
     end
 end
 
