@@ -115,8 +115,6 @@ if df.empty:
     print("csv track step file", tracks, " has no good UH objects at requested valid time",valid_time,". That is probably fine.")
     sys.exit(0)
 
-
-
 # List of all png files that will be created.
 pngfiles = odir + '/' + df.Step_ID + "_" + "{:+1.0f}".format(timeshift) + ".png"
 if all([os.path.isfile(p) for p in pngfiles]) and not force_new:
@@ -175,6 +173,10 @@ wrflat, wrflon = latlon_coords(cvar)
 if debug: print("get_cartopy...")
 WRF_proj = get_cartopy(cvar)
 
+# convert WRF lat/lons to x,y
+pts = WRF_proj.transform_points(cartopy.crs.PlateCarree(), to_np(wrflon[::stride,::stride]), to_np(wrflat[::stride,::stride])) # Transform lon/lat to x and y (in meters) in WRF projection.
+x, y, z = pts[:,:,0], pts[:,:,1], pts[:,:,2]
+
 fig = plt.figure(figsize=(10,10))
 if debug: print("plt.axes()")
 ax = plt.axes(projection=WRF_proj)
@@ -195,8 +197,8 @@ if debug:
 
 if debug:
     print("plotting filled contour",cvar.name,"...")
-cfill = ax.contourf(to_np(wrflon[::stride,::stride]), to_np(wrflat[::stride,::stride]), to_np(cvar[::stride,::stride]), levels=levels, 
-        cmap=cmap, transform=cartopy.crs.PlateCarree() )
+    
+cfill = ax.contourf(x, y, to_np(cvar[::stride,::stride]), levels=levels, cmap=cmap)
 
 # Color bar
 cb = plt.colorbar(cfill, ax=ax, format='%.0f', shrink=0.52, orientation='horizontal')
@@ -225,11 +227,11 @@ if args.fill == 'crefuh':
         print("Filled contour UH >",max_uh_threshold)
         # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty.
         # See https://github.com/SciTools/cartopy/issues/1290
-        cs1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=[max_uh_threshold,1000], colors='black', 
-                alpha=0.3, transform=cartopy.crs.PlateCarree() )
+        cs1 = ax.contourf(x, y, to_np(max_uh), levels=[max_uh_threshold,1000], colors='black', 
+                alpha=0.3 )
         if debug: print("solid contour UH >",max_uh_threshold)
-        cs2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(max_uh), levels=max_uh_threshold*np.arange(1,6), colors='black', 
-                linestyles='solid', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
+        cs2 = ax.contour(x, y, to_np(max_uh), levels=max_uh_threshold*np.arange(1,6), colors='black', 
+                linestyles='solid', linewidths=0.4 )
         fineprint0 += "UH>"+str(max_uh_threshold) +" "+ max_uh.units + " "
         # Oddly, the zero contour is plotted if there are no other valid contours
         if 0.0 in cs2.levels:
@@ -242,11 +244,11 @@ if args.fill == 'crefuh':
         print("Filled UH contour <",min_uh_threshold)
         # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty. 
         # See https://github.com/SciTools/cartopy/issues/1290
-        negUH1 = ax.contourf(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=[-1000, min_uh_threshold], colors='black', 
-                alpha=0.3, transform=cartopy.crs.PlateCarree() )
+        negUH1 = ax.contourf(x, y, to_np(min_uh), levels=[-1000, min_uh_threshold], colors='black', 
+                alpha=0.3 )
         if debug: print("dashed contour UH <",min_uh_threshold)
-        negUH2 = ax.contour(to_np(wrflon), to_np(wrflat), to_np(min_uh), levels=min_uh_threshold*np.arange(6,0,-1), colors='black', 
-                linestyles='dashed', linewidths=0.4, transform=cartopy.crs.PlateCarree() )
+        negUH2 = ax.contour(x, y, to_np(min_uh), levels=min_uh_threshold*np.arange(6,0,-1), colors='black', 
+                linestyles='dashed', linewidths=0.4 )
         fineprint0 += "UH<"+str(-min_uh_threshold) +" "+ min_uh.units + " " 
         if 0.0 in negUH2.levels:
             print("neg uh has a zero contour. Hide it")
@@ -269,20 +271,25 @@ if barb:
     info = fieldinfo.nsc[barb]
     if debug:
         print("found nsc in fieldinfo.py. Using",info)
-    u,v = getvar(wrfnc, 'uvmet10', units='kt')
+    if args.barb == 'wind10m': u,v = getvar(wrfnc, 'uvmet10', units='kt')
+    if args.barb == 'shr06':
+        u = getvar(wrfnc, 'USHR6')*1.93
+        v = getvar(wrfnc, 'VSHR6')*1.93
+        u.attrs['units'] = 'kt'
+        v.attrs['units'] = 'kt'
 
     # Density of barbs stays the same, no matter the domain size (padding)
     # larger domain = greater stride
     skip = int(round(np.max([(padding[0]+padding[1]), (padding[2]+padding[3])])/50))
 
-    if args.fill ==  'crefuh': alpha=0.5
+    if args.fill ==  'crefuh': alpha=0.6
     else: alpha=1.0
 
     if debug: print("plotBarbs: starting barbs")
     # barbs already oriented with map projection. In Basemap, we needed to use m.rotate_vector().
-    cs2 = ax.barbs(to_np(wrflon)[::skip*stride,::skip*stride], to_np(wrflat)[::skip*stride,::skip*stride], 
+    cs2 = ax.barbs(x[::skip*stride,::skip*stride], y[::skip*stride,::skip*stride], 
             to_np(u)[::skip*stride,::skip*stride], to_np(v)[::skip*stride,::skip*stride], color='black', 
-            alpha=alpha, length=3.9, linewidth=0.25, sizes={'emptybarb':0.05}, transform=cartopy.crs.PlateCarree())
+            alpha=alpha, length=5, linewidth=0.25, sizes={'emptybarb':0.05} )
     fineprint0 += "wind barb (" + u.units + ") "
 
 if contour:
@@ -298,9 +305,9 @@ if contour:
     alpha=0.4
 
     if debug: print("starting "+contour+" contours")
-    cr = ax.contour(to_np(wrflon)[::stride,::stride], to_np(wrflat)[::stride,::stride], 
+    cr = ax.contour(x[::stride,::stride], y[::stride,::stride], 
             cvar[::stride,::stride], levels=levels, colors='black', alpha=alpha, 
-            linewidths=0.75, transform=cartopy.crs.PlateCarree())
+            linewidths=0.75)
     clab = ax.clabel(cr, inline=False, fmt='%.0f', fontsize=6)
     fineprint0 += "contour "+contour+" (" + cvar.units + ") "
 
