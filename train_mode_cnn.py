@@ -116,14 +116,18 @@ def main():
                                                 index_label="index")
                 saliency[model_name][mode] = models[model_name].saliency(input_scaled[mode])
 
-                saliency[model_name][mode].to_netcdf(join(config["out_path"], f"neuron_saliency_{model_name}_{mode}.nc"),
-                                         encoding={"saliency": {"zlib": True, "complevel": 4, "shuffle": True}})
+                saliency[model_name][mode].to_netcdf(join(config["out_path"],
+                                                          f"neuron_saliency_{model_name}_{mode}.nc"),
+                                                     encoding={"saliency": {"zlib": True,
+                                                                            "complevel": 4,
+                                                                            "shuffle": True,
+                                                                            "least_significant_digit": 3}})
                 if config["classifier"]:
                     neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
-                                                                    neuron_activations[model_name][mode][neuron_columns].values)
+                                                                        neuron_activations[model_name][mode][neuron_columns].values)
                 else:
                     neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
-                                                                    neuron_activations[model_name][mode][neuron_columns].values,
+                                                                        neuron_activations[model_name][mode][neuron_columns].values,
                                                         metric="r")
             neuron_scores[model_name].to_csv(join(config["out_path"],
                                              f"neuron_scores_{model_name}.csv"), index_label="mode")

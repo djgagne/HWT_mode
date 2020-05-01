@@ -1,0 +1,102 @@
+data_path: "/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_COM_ws_nc/"
+patch_radius: 16
+input_variables: ["REFL_1KM_AGL_curr", "U10_curr", "V10_curr"]
+output_variables: ["UP_HELI_MAX_curr"]
+meta_variables: ["masks", "i", "j", "time", "centroid_lon", "centroid_lat",
+                 "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
+train_start_date: "2010-10-01"
+train_end_date: "2014-12-31"
+val_start_date: "2014-01-01"
+val_end_date: "2014-12-31"
+test_start_date: "2015-01-01"
+test_end_date: "2017-06-30"
+out_path: "/glade/work/dgagne/mode_cnn_20200430/"
+classifier: 1
+classifier_threshold: 50
+models:
+  cnn_20200430_000:
+    min_filters: 16
+    filter_width: 5
+    filter_growth_rate: 2
+    pooling_width: 2
+    min_data_width: 4
+    output_type: "sigmoid"
+    pooling: "mean"
+    loss: "binary_crossentropy"
+    hidden_activation: "relu"
+    learning_rate: 0.001
+    batch_size: 256
+    epochs: 20
+    dense_neurons: 9
+    l2_alpha: 0.001
+    early_stopping: 0
+    verbose: 1
+  cnn_20200430_001:
+    min_filters: 16
+    filter_width: 5
+    filter_growth_rate: 2
+    pooling_width: 2
+    min_data_width: 4
+    output_type: "sigmoid"
+    pooling: "mean"
+    loss: "binary_crossentropy"
+    hidden_activation: "leaky"
+    learning_rate: 0.001
+    batch_size: 256
+    epochs: 20
+    dense_neurons: 9
+    l2_alpha: 0.001
+    early_stopping: 0
+    verbose: 1
+  cnn_20200430_002:
+    min_filters: 16
+    filter_width: 5
+    filter_growth_rate: 2
+    pooling_width: 2
+    min_data_width: 4
+    output_type: "sigmoid"
+    pooling: "mean"
+    loss: "binary_crossentropy"
+    hidden_activation: "leaky"
+    learning_rate: 0.0001
+    batch_size: 256
+    epochs: 20
+    dense_neurons: 9
+    l2_alpha: 0.001
+    early_stopping: 0
+    verbose: 1
+  cnn_20200430_003:
+    min_filters: 16
+    filter_width: 5
+    filter_growth_rate: 2
+    pooling_width: 2
+    min_data_width: 4
+    output_type: "sigmoid"
+    pooling: "mean"
+    loss: "binary_crossentropy"
+    hidden_activation: "leaky"
+    learning_rate: 0.001
+    batch_size: 256
+    epochs: 20
+    dense_neurons: 9
+    l2_alpha: 0.0001
+    early_stopping: 0
+    verbose: 1
+  cnn_20200430_004:
+    min_filters: 16
+    filter_width: 3
+    filter_growth_rate: 2
+    pooling_width: 2
+    min_data_width: 4
+    output_type: "sigmoid"
+    pooling: "mean"
+    loss: "binary_crossentropy"
+    hidden_activation: "leaky"
+    learning_rate: 0.001
+    batch_size: 256
+    epochs: 20
+    dense_neurons: 9
+    l2_alpha: 0.001
+    early_stopping: 0
+    verbose: 1
+
