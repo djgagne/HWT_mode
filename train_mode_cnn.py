@@ -1,7 +1,7 @@
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
-from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites
+from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites, plot_top_activations
 import argparse
 import yaml
 from os.path import exists, join
@@ -26,7 +26,7 @@ def main():
         config = yaml.load(config_file, Loader=yaml.Loader)
     # Load training data
     print(f"Loading training data period: {config['train_start_date']} to {config['train_end_date']}")
-    input = {}
+    data_input = {}
     output = {}
     out_max = {}
     labels = {}
@@ -39,14 +39,14 @@ def main():
     modes = ["train", "val", "test"]
     # Load training, validation, and testing data
     for mode in modes:
-        input[mode], output[mode], meta[mode] = load_patch_files(config[mode + "_start_date"],
+        data_input[mode], output[mode], meta[mode] = load_patch_files(config[mode + "_start_date"],
                                                                  config[mode + "_end_date"],
                                                                  config["data_path"],
                                                                  config["input_variables"],
                                                                  config["output_variables"],
                                                                  config["meta_variables"],
                                                                  config["patch_radius"])
-        input_combined[mode] = combine_patch_data(input[mode], config["input_variables"])
+        input_combined[mode] = combine_patch_data(data_input[mode], config["input_variables"])
         if mode == "train":
             input_scaled[mode], scale_values[mode] = min_max_scale(input_combined[mode])
         else:
@@ -132,6 +132,8 @@ def main():
             neuron_scores[model_name].to_csv(join(config["out_path"],
                                              f"neuron_scores_{model_name}.csv"), index_label="mode")
     if args.plot:
+        if "plot_kwargs" not in config.keys():
+            config["plot_kwargs"] = {}
         for model_name, model_config in config["models"].items():
             if model_name not in models.keys():
                 model_out_path = join(config["out_path"], model_name)
@@ -147,17 +149,26 @@ def main():
                                                            index_col="index")
                     saliency[model_name][mode] = xr.open_dataarray(join(config["out_path"],
                                                                         f"neuron_saliency_{model_name}_{mode}.nc"))
-
                 for variable_name in config["input_variables"]:
+                    if variable_name not in config["plot_kwargs"].keys():
+                        plot_kwargs = None
+                    else:
+                        plot_kwargs = config["plot_kwargs"][variable_name]
                     plot_neuron_composites(config["out_path"], model_name + "_" + mode,
                                            input_combined[mode],
                                            neuron_activations[model_name][mode].values,
                                            neuron_scores[model_name].loc[mode].values,
-                                           variable_name)
+                                           variable_name, plot_kwargs=plot_kwargs)
                     plot_saliency_composites(config["out_path"], model_name + "_" + mode,
                                              saliency[model_name][mode], neuron_activations[model_name][mode].values,
                                              neuron_scores[model_name].loc[mode].values,
                                              variable_name)
+                    plot_top_activations(config["out_path"], model_name + "_" + mode,
+                                         input_combined[mode], meta_df[mode],
+                                         neuron_activations[model_name][mode],
+                                         neuron_scores[model_name].loc[mode].values,
+                                         saliency[model_name][mode],
+                                         variable_name, plot_kwargs=plot_kwargs)
     return
 
 

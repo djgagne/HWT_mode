@@ -93,3 +93,34 @@ def plot_saliency_composites(out_path, model_name, saliency_data, neuron_activat
                 dpi=dpi, bbox_inches="tight")
     plt.close()
     return
+
+
+def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activations, neuron_scores, saliency_data,
+                         variable_name, panel_size=16, figsize_scale=3.0, out_format="png", dpi=200, plot_kwargs=None,
+                         colorbar_loc=(0.93, 0.1, 0.02, 0.8)):
+    fig_rows = int(np.floor(np.sqrt(panel_size)))
+    fig_cols = int(np.ceil(panel_size / fig_rows))
+    for neuron_number in range(neuron_activations):
+        n_rank = neuron_activations[f"neuron_{neuron_number:03d}"].argsort()[::-1].values
+        fig, axes = plt.subplots(fig_rows, fig_cols,
+                                 figsize=(fig_cols * figsize_scale, fig_rows * figsize_scale),
+                                 sharex=True, sharey=True)
+        plt.subplots_adjust(wspace=0, hspace=0)
+        sal_ex = saliency_data[neuron_number, n_rank[:panel_size]].sel(var_name=variable_name)
+        sal_max = np.abs(sal_ex).max()
+        pc = None
+        for a, ax in enumerate(axes.ravel()):
+            pc = ax.pcolormesh(x_data[n_rank[a], :, :, 0], **plot_kwargs)
+            ax.contour(-sal_ex[a], 6, vmin=-sal_max, vmax=sal_max, cmap="RdBu_r")
+            ax.set_xticks(np.arange(0, 32, 8))
+            ax.set_yticks(np.arange(0, 32, 8))
+            ax.text(0, 0, meta_df.loc[n_rank[a], "time"])
+        if pc is not None:
+            cb_ax = fig.add_axes(colorbar_loc)
+            cbar = fig.colorbar(pc, cax=cb_ax)
+        fig.suptitle(f"Neuron {neuron_number} Top Activated Storms, Score: {neuron_scores[neuron_number]:0.3f}",
+                     fontsize=14, y=0.95)
+        plt.savefig(join(out_path, f"top_activations_neuron_{neuron_number:03d}_{model_name}.{out_format}"),
+                    dpi=dpi, bbox_inches="tight")
+        plt.close()
+    return

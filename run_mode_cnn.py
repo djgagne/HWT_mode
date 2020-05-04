@@ -55,5 +55,6 @@ def main():
             neuron_activations[model_name].loc[rdi].to_csv(na_file, index_col="index")
     return
 
+
 if __name__ == "__main__":
     main()
