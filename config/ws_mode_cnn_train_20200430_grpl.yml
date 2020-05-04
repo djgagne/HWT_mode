@@ -1,7 +1,7 @@
-data_path: "/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_COM_ws_nc/"
+data_path: "/glade/scratch/dgagne/track_data_ncarstorm_3km_REFL_COM_ws_nc/"
 patch_radius: 16
 input_variables: ["REFL_1KM_AGL_curr", "U10_curr", "V10_curr"]
-output_variables: ["GRPL_MAX"]
+output_variables: ["GRPL_MAX_curr"]
 meta_variables: ["masks", "i", "j", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 train_start_date: "2010-10-01"

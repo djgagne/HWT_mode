@@ -1,4 +1,4 @@
-data_path: "/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_COM_ws_nc/"
+data_path: "/glade/scratch/dgagne/track_data_ncarstorm_3km_REFL_COM_ws_nc/"
 patch_radius: 16
 input_variables: ["REFL_1KM_AGL_curr", "U10_curr", "V10_curr"]
 output_variables: ["UP_HELI_MAX_curr"]
