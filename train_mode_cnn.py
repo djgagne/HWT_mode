@@ -132,9 +132,11 @@ def main():
             neuron_scores[model_name].to_csv(join(config["out_path"],
                                              f"neuron_scores_{model_name}.csv"), index_label="mode")
     if args.plot:
+        print("Begin plotting")
         if "plot_kwargs" not in config.keys():
             config["plot_kwargs"] = {}
         for model_name, model_config in config["models"].items():
+            print(model_name)
             if model_name not in models.keys():
                 model_out_path = join(config["out_path"], model_name)
                 models[model_name] = load_conv_net(model_out_path, model_name)
@@ -143,6 +145,7 @@ def main():
                                                         f"neuron_scores_{model_name}.csv"), index_col="mode")
                 saliency[model_name] = {}
             for mode in modes:
+                print(mode)
                 if mode not in neuron_activations[model_name].keys():
                     neuron_activations[model_name][mode] = pd.read_csv(join(config["out_path"],
                                                            f"neuron_activations_{model_name}_{mode}.csv"),
@@ -150,6 +153,7 @@ def main():
                     saliency[model_name][mode] = xr.open_dataarray(join(config["out_path"],
                                                                         f"neuron_saliency_{model_name}_{mode}.nc"))
                 for variable_name in config["input_variables"]:
+                    print(variable_name)
                     if variable_name not in config["plot_kwargs"].keys():
                         plot_kwargs = None
                     else:

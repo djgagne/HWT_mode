@@ -13,6 +13,19 @@ test_end_date: "2011-04-28"
 out_path: "model_cnn_20200416/"
 classifier: 1
 classifier_threshold: 50
+plot_kwargs:
+  REFL_1KM_AGL_curr:
+    vmin: 0
+    vmax: 80
+    cmap: "gist_ncar"
+  U10_curr:
+    vmin: -20
+    vmax: 20
+    cmap: "RdBu_r"
+  V10_curr:
+    vmin: -20
+    vmax: 20
+    cmap: "RdBu_r"
 models:
   cnn_20200416_000:
     min_filters: 8
@@ -20,12 +33,16 @@ models:
     filter_growth_rate: 1.5
     pooling_width: 2
     min_data_width: 4
+    hidden_activation: "leaky"
     output_type: "sigmoid"
-    pooling: "max"
+    pooling: "mean"
     loss: "binary_crossentropy"
-    learning_rate: 0.0001
+    learning_rate: 0.01
     batch_size: 8
     epochs: 20
+    l2_alpha: 0.001
+    use_dropout: 1
+    dropout_alpha: 0.5
     dense_neurons: 4
     early_stopping: 0
     verbose: 1
