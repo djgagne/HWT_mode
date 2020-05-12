@@ -20,7 +20,9 @@ def plot_storm_mode_analysis_map(neuron_activations, meta_data, plot_settings,
                                  run_date, start_hour, end_hour, cnn_name, out_path,
                                  period_total=False, figsize=(10, 6), transparent=False, region="CONUS"):
     neurons_plotted = sorted(list(plot_settings.keys()))
-    patch_hours = ((pd.DatetimeIndex(meta_data["time"]) - pd.Timestamp(run_date)).total_seconds() // 3600).astype(int)
+    print(meta_data)
+    patch_hours = ((pd.DatetimeIndex(meta_data["time"].values) - pd.Timestamp(run_date)).total_seconds() // 3600).astype(int)
+    print(patch_hours)
     run_date_str = run_date.strftime("%Y%m%d%H")
     out_full_path = join(out_path, cnn_name, run_date_str, region)
     if not exists(out_full_path):
@@ -29,19 +31,21 @@ def plot_storm_mode_analysis_map(neuron_activations, meta_data, plot_settings,
         time_valid_patches = (patch_hours >= start_hour) & (patch_hours <= end_hour)
         neuron_subset = neuron_activations.loc[time_valid_patches, neurons_plotted]
         top_neuron = neuron_subset.idxmax(axis=1)
-        fig, ax = plt.subplots(1, 1, figsize=figsize, projection=lcc_proj)
-        ax.add_feature(land_50m)
-        ax.add_feature(states_50m)
+        print(top_neuron)
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_axes([0, 1, 1, 1], projection=lcc_proj)
+        ax.add_feature(land_50m, zorder=1)
+        ax.add_feature(states_50m, zorder=2)
+        ax.set_extent((-120, -74, 23, 50))
         for p in neuron_subset.index:
-            n_max = neurons_plotted[top_neuron[p]]
-            if neuron_subset.iloc[p, top_neuron[p]] >= plot_settings[n_max]["vmin"]:
-                ax.pcolormesh(meta_data["lon"][p], meta_data["lat"][p],
-                              np.ma.array(meta_data["masks"][p] * neuron_subset.iloc[p, top_neuron[p]],
-                                          mask=meta_data["masks"][p] == 0),
+            n_max = top_neuron[p]
+            ax.pcolormesh(meta_data["lon"].sel(p=p), meta_data["lat"].sel(p=p),
+                              np.ma.array(meta_data["masks"].sel(p=p) * neuron_subset.loc[p, n_max],
+                                          mask=meta_data["masks"].sel(p=p) == 0),
                               vmin=plot_settings[n_max]["vmin"],
                               vmax=plot_settings[n_max]["vmax"],
                               cmap=plot_settings[n_max]["cmap"],
-                              transform=lat_lon_proj)
+                              transform=lat_lon_proj, zorder=3)
         title_date = run_date.strftime("%Y-%m-%d %H UTC")
         ax.set_title("Convolutional Neural Network Analysis (Red: Supercell, Blue: Squall Line)\n" +
                       f"Init: {title_date} Valid: F{start_hour:03d}-F{end_hour:03d}")
@@ -52,21 +56,24 @@ def plot_storm_mode_analysis_map(neuron_activations, meta_data, plot_settings,
         title_date = run_date.strftime("%Y-%m-%d %H UTC")
         for f_hour in range(start_hour, end_hour + 1):
             time_valid_patches = patch_hours == f_hour
-            neuron_subset = neuron_activations.loc[time_valid_patches, neurons_plotted]
-            top_neuron = neuron_subset.idxmax(axis=1)
-            fig, ax = plt.subplots(1, 1, figsize=figsize, projection=lcc_proj)
-            ax.add_feature(land_50m)
-            ax.add_feature(states_50m)
-            for p in neuron_subset.index:
-                n_max = neurons_plotted[top_neuron[p]]
-                if neuron_subset.iloc[p, top_neuron[p]] >= plot_settings[n_max]["vmin"]:
-                    ax.pcolormesh(meta_data["lon"][p], meta_data["lat"][p],
-                                  np.ma.array(meta_data["masks"][p] * neuron_subset.iloc[p, top_neuron[p]],
-                                              mask=meta_data["masks"][p] == 0),
-                                  vmin=plot_settings[n_max]["vmin"],
-                                  vmax=plot_settings[n_max]["vmax"],
-                                  cmap=plot_settings[n_max]["cmap"],
-                                  transform=lat_lon_proj)
+            patch_count = np.count_nonzero(time_valid_patches)
+            fig = plt.figure(figsize=figsize)
+            ax = fig.add_axes([0, 1, 1, 1], projection=lcc_proj)
+            ax.add_feature(land_50m, zorder=1)
+            ax.add_feature(states_50m, zorder=2)
+            ax.set_extent((-120, -74, 23, 50))
+            if patch_count > 0: 
+                neuron_subset = neuron_activations.loc[time_valid_patches, neurons_plotted]
+                top_neuron = neuron_subset.idxmax(axis=1)
+                for p in neuron_subset.index:
+                    n_max = top_neuron[p]
+                    ax.pcolormesh(meta_data["lon"].sel(p=p), meta_data["lat"].sel(p=p),
+                                    np.ma.array(meta_data["masks"].sel(p=p) * neuron_subset.loc[p, n_max],
+                                                mask=meta_data["masks"].sel(p=p) == 0),
+                                    vmin=plot_settings[n_max]["vmin"],
+                                    vmax=plot_settings[n_max]["vmax"],
+                                    cmap=plot_settings[n_max]["cmap"],
+                                    transform=lat_lon_proj, zorder=3)
             ax.set_title("Convolutional Neural Network Analysis (Red: Supercell, Blue: Squall Line)\n" +
                          f"Init: {title_date} Valid: F{f_hour:03d}")
             plt.savefig(join(out_full_path, f"cnn_storm_mode_f{f_hour:02d}_{region}.png"),

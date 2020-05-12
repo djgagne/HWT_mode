@@ -1,4 +1,4 @@
-data_path: "/glade/scratch/dgagne/track_data_wrfrt_2020_3km_REFL_COM_ws_nc/"
+data_path: "/glade/scratch/dgagne/track_data_ncar_wrfrt_2020_3km_REFL_COM_ws_nc/"
 patch_radius: 16
 input_variables: ["REFL_COM_curr"]
 output_variables: ["UP_HELI_MAX_curr"]
@@ -6,6 +6,7 @@ meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centr
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 run_start_date: "2020-04-24"
 run_end_date: "2020-05-05"
+date_format: "%Y%m%d%H"
 start_hour: 01
 end_hour: 35
 out_path: "/glade/work/dgagne/mode_cnn_uh_20200504/"
@@ -14,11 +15,15 @@ models:
   cnn_20200504_002:
     neuron_004:
       cmap: "Blues"
-      vmin: 0.2
+      vmin: 0.0
       vmax: 1.6
     neuron_008:
       cmap: "Reds"
-      vmin: 0.2
+      vmin: 0.0
+      vmax: 1.6
+    neuron_003:
+      cmap: "Oranges"
+      vmin: 0.0
       vmax: 1.6
 
 

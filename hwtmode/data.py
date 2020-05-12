@@ -26,7 +26,7 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
         input_data (:class:`xarray.Dataset`): Datasetcontaining input variables as separate
     """
     if not exists(patch_dir):
-        raise FileNotFoundError("Patch directory not found")
+        raise FileNotFoundError(f"Patch directory {patch_dir} not found")
     patch_files = pd.Series(sorted(glob(join(patch_dir, "*.nc"))))
     date_strings = patch_files.str.split("/").str[-1].str.split("_").str[1]
     patch_dates = pd.to_datetime(date_strings)
