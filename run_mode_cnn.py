@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars
 from hwtmode.models import load_conv_net
-
+from hwtmode.analysis import plot_storm_mode_analysis_map
 
 def main():
     parser = argparse.ArgumentParser()
@@ -18,14 +18,14 @@ def main():
         raise FileNotFoundError(args.config + " not found.")
     with open(args.config, "r") as config_file:
         config = yaml.load(config_file, Loader=yaml.Loader)
-    input, output, meta = load_patch_files(config["run_start_date"],
+    input_data, output, meta = load_patch_files(config["run_start_date"],
                                            config["run_end_date"],
                                            config["data_path"],
                                            config["input_variables"],
                                            config["output_variables"],
                                            config["meta_variables"],
                                            config["patch_radius"])
-    input_combined = combine_patch_data(input, config["input_variables"])
+    input_combined = combine_patch_data(input_data, config["input_variables"])
     scale_values = pd.read_csv(join(config["out_path"], "scale_values.csv"))
     input_scaled, scale_values = min_max_scale(input_combined, scale_values)
     out_max = storm_max_value(output[config["output_variables"][0]], meta["masks"])
@@ -53,6 +53,14 @@ def main():
             na_file = join(config["activation_path"],
                            f"neuron_activations_{model_name}_{run_date_str}.csv")
             neuron_activations[model_name].loc[rdi].to_csv(na_file, index_col="index")
+            plot_storm_mode_analysis_map(neuron_activations[model_name].loc[rdi],
+                                         meta.sel(run_date=run_date), config["models"][model_name],
+                                         run_date, 12, 35, model_name, config["activation_path"], period_total=True)
+            plot_storm_mode_analysis_map(neuron_activations[model_name].loc[rdi],
+                                         meta.sel(run_date=run_date), config["models"][model_name],
+                                         run_date, config["start_hour"], config["end_hour"], model_name,
+                                         config["activation_path"],
+                                         period_total=False)
     return
 
 
