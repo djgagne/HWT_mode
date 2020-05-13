@@ -57,15 +57,19 @@ def main():
                            f"neuron_activations_{model_name}_{run_date_str}.csv")
             neuron_activations[model_name].loc[rdi].to_csv(na_file, index_label="index")
             meta_run = meta.isel(p=np.where(rdi)[0])
-            print(meta_run)
+            print(run_date.strftime("%Y-%m-%d") + " plot all storms")
             plot_storm_mode_analysis_map(neuron_activations[model_name].loc[rdi],
                                          meta_run, config["models"][model_name],
                                          run_date, 1, 35, model_name, config["activation_path"], period_total=True)
-            #plot_storm_mode_analysis_map(neuron_activations[model_name].loc[rdi],
-            #                             meta_run, config["models"][model_name],
-            #                             run_date, config["start_hour"], config["end_hour"], model_name,
-            #                             config["activation_path"],
-            #                             period_total=False)
+            plot_storm_mode_analysis_map(neuron_activations[model_name].loc[rdi],
+                                         meta_run, config["models"][model_name],
+                                         run_date, 12, 35, model_name, config["activation_path"], period_total=True)
+            print(run_date.strftime("%Y-%m-%d") + " plot hourly storms")
+            plot_storm_mode_analysis_map(neuron_activations[model_name].loc[rdi],
+                                         meta_run, config["models"][model_name],
+                                         run_date, config["start_hour"], config["end_hour"], model_name,
+                                         config["activation_path"],
+                                         period_total=False)
     return
 
 
