@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH --job-name=run_m_cnn
 #SBATCH --account=NAML0001
-#SBATCH --ntasks=16
+#SBATCH --ntasks=4
 #SBATCH --cpus-per-task=1
 #SBATCH --time=1:00:00
 #SBATCH --partition=dav
