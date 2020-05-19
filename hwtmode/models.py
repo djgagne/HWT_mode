@@ -1,5 +1,5 @@
 from tensorflow.keras.layers import Dense, Conv2D, Activation, Input, Flatten, AveragePooling2D, MaxPool2D, LeakyReLU
-from tensorflow.keras.layers import SpatialDropout2D
+from tensorflow.keras.layers import SpatialDropout2D, Dropout
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras.losses import mean_squared_error, mean_absolute_error, binary_crossentropy
@@ -119,6 +119,8 @@ class BaseConvNet(object):
                 scn_model = AveragePooling2D(pool_size=(self.pooling_width, self.pooling_width),
                                              data_format=self.data_format, name="pooling_{0:02d}".format(c))(scn_model)
         scn_model = Flatten(name="flatten")(scn_model)
+        if self.use_dropout:
+            scn_model = Dropout(rate=self.dropout_alpha)(scn_model)
         scn_model = Dense(self.dense_neurons, name="dense_hidden", kernel_regularizer=reg)(scn_model)
         if self.hidden_activation == "leaky":
             scn_model = LeakyReLU(self.leaky_alpha, name="hidden_dense_activation")(scn_model)
