@@ -6,6 +6,8 @@ meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centr
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 run_start_date: "today"
 run_end_date: "today"
+#run_start_date: "2020-05-17"
+#run_end_date: "2020-05-17"
 date_format: "%Y%m%d%H"
 start_hour: 01
 end_hour: 35
