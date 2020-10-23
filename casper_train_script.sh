@@ -1,4 +1,4 @@
-``#!/bin/bash -l
+#!/bin/bash -l
 #SBATCH --job-name=HWT_train
 #SBATCH --account=NAML0001
 #SBATCH --ntasks=16

@@ -1,6 +1,8 @@
+__pycache__
 .ipynb_checkpoints/
 *.egg*
 *.out
+*.o*
 *.idea
 data/
 images/

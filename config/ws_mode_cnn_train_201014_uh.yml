@@ -1,7 +1,7 @@
-data_path: "../data/track_data_nsc_3km_REFL_COM_ws_nc"
+data_path: "/glade/scratch/dgagne/NSC_data/track_data_nsc_3km_REFL_COM_ws_nc"
 patch_radius: 16
 input_variables: ["REFL_COM_curr"]
-output_variables: ["HAIL_MAXK1_future"] #["UP_HELI_MAX_future"] #["HAIL_MAXK1_future"]
+output_variables: ["UP_HELI_MAX_future"] #["UP_HELI_MAX_future"] #["HAIL_MAXK1_future"]
 meta_variables: ["masks", "i", "j", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 train_start_date: "2010-10-01"
@@ -10,9 +10,9 @@ val_start_date: "2014-01-01"
 val_end_date: "2014-12-31"
 test_start_date: "2015-01-01"
 test_end_date: "2017-06-30"
-out_path: "../models/mode_cnn_hm_201009/"
+out_path: "/glade/p/cisl/aiml/ggantos/HWT/mode_cnn_uh_201014/"
 classifier: 1
-classifier_threshold: 0.04 #75 #0.04
+classifier_threshold: 75 #75 #0.04
 plot_kwargs:
   REFL_COM_curr:
     vmin: 0
@@ -35,7 +35,7 @@ models:
     use_dropout: 1
     dropout_alpha: 0.2
     epochs: 20
-    dense_neurons: 9
+    dense_neurons: 4
     l2_alpha: 0.001
     early_stopping: 0
     verbose: 1
