@@ -10,7 +10,7 @@ val_start_date: "2014-01-01"
 val_end_date: "2014-12-31"
 test_start_date: "2015-01-01"
 test_end_date: "2017-06-30"
-out_path: "/glade/p/cisl/aiml/ggantos/HWT/mode_cnn_hm_201014/"
+out_path: "/glade/p/cisl/aiml/ggantos/HWT/mode_cnn_hm_201023_DO5/"
 classifier: 1
 classifier_threshold: 0.04 #75 #0.04
 plot_kwargs:
@@ -33,7 +33,7 @@ models:
     learning_rate: 0.001
     batch_size: 256
     use_dropout: 1
-    dropout_alpha: 0.2
+    dropout_alpha: 0.5
     epochs: 20
     dense_neurons: 4
     l2_alpha: 0.001
