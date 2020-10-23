@@ -1,1 +1,8 @@
 .ipynb_checkpoints/
+*.egg*
+*.out
+*.idea
+data/
+images/
+models/
+.DS_Store
