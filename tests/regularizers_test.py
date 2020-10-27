@@ -12,9 +12,9 @@ def test_covariance_regularizer():
     cr = CovarianceRegularizer(scale=1)
     output = cr(x)
     output_ones = cr(x_ones)
-    print("Output ones", output_ones)
     assert len(output.shape) == 0
     assert output > 0
+    assert output_ones == 0
     return
 
 
