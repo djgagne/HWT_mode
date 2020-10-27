@@ -8,3 +8,5 @@ data/
 images/
 models/
 .DS_Store
+mprofile_*
+*.log
