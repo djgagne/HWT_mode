@@ -7,6 +7,7 @@ which storm mode they represent.
 ## Requirements
 HWT_mode requires Python >= 3.6. The HWT_mode package requires the following Python libraries:
 * tensorflow>=2.0
+* tensorflow-probability
 * numpy
 * scipy
 * matplotlib
@@ -46,7 +47,7 @@ $ conda create -n mode --yes -c conda-forge python=3.7 pip numpy scipy matplotli
 ```
 To activate the newly created environment, run the following command.
 ```bash
-$ source activate mode
+$ conda activate mode
 ```
 You can also edit your $PATH environment variable directly. Note that the environment path may
 differ depending on the version of miniconda you are using.
