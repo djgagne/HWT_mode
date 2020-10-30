@@ -173,6 +173,15 @@ def main():
                                          neuron_scores[model_name].loc[mode].values,
                                          saliency[model_name][mode],
                                          variable_name, plot_kwargs=plot_kwargs)
+              plot_additional_vars(
+                         neuron_activations[model_name][mode],
+                         config['data_path'],
+                         config['output_path'],
+                         config['exta_plot_vars'],
+                         mode,
+                         model_name,
+                         model_config['dense_neurons'],
+                         config['plot_kwargs'])
     return
 
 
