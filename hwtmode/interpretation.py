@@ -128,3 +128,41 @@ def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activatio
                     dpi=dpi, bbox_inches="tight")
         plt.close()
     return
+
+def plot_additional_vars(neuron_activations, data_path, output_path, variables, mode, model_name, num_neurons, plot_kwargs):
+    
+    neuron_activations.run_date = df.run_date.astype('datetime64[ns]').reset_index(drop=True)
+    neuron_activations.time = df.time.astype('datetime64[ns]').reset_index(drop=True) - pd.Timedelta(6, 'H')
+    
+    for n in list(df.columns[-number_neurons:]):
+    
+        sub = neuron_activations.sort_values(by=[n], ascending=False).iloc[:9, :].reset_index(drop=True)
+        date = neuron_activations.sort_values(by=[n], ascending=False)['run_date'][:9].reset_index(drop=True)
+    
+        for var in variables:
+            fig, axes = plt.subplots(3, 3, figsize=(16,16), sharex=True, sharey=True)
+            plt.subplots_adjust(wspace=0.03, hspace=0.03)
+            kwargs = plot_kwargs[var]
+            
+            for i, ax in enumerate(axes.ravel()):
+                date_string = date[i].strftime('%Y%m%d')
+                file_path = f'{data_path}/NCARSTORM_{date_string}-0000_d01_model_patches.nc'
+                ds = xr.open_dataset(file_path)
+                
+                if var == 'SHR6_prev':
+                    u_shear = ds['USHR6_prev'].where((ds.centroid_i == sub['centroid_i'][i])&(ds.centroid_j == sub['centroid_j'][i]), drop=True)
+                    v_shear = ds['VSHR6_prev'].where((ds.centroid_i == sub['centroid_i'][i])&(ds.centroid_j == sub['centroid_j'][i]), drop=True)
+                    x = np.mean(np.abs(u_shear) + np.abs(v_shear), axis=0).expand_dims('p')
+                else:
+                    x = ds[var].where((ds.centroid_i == sub['centroid_i'][i])&(ds.centroid_j == sub['centroid_j'][i]), drop=True)
+                    
+                im = ax.contourf(x[0], levels=np.linspace(kwargs['vmin'], kwargs['vmax'],101), extend='max', plot_kwargs=kwargs)
+                plt.subplots_adjust(right=0.975)
+                cbar_ax = fig.add_axes([1, 0.125, 0.025, 0.83])
+                fig.colorbar(im, cbar_ax)
+                ax.set_xticks([], [])
+                ax.set_yticks([], [])
+                plt.suptitle(f'Top Storm Activations for {n} - {var} - {model_name} - {mode}', fontsize=20)
+                plt.subplots_adjust(top=0.95)
+                plt.savefig(f'{output_path}/{var}_{model_name}_{training}_{n}.png', bbox_inches='tight')
+    return   
