@@ -157,7 +157,7 @@ def plot_additional_vars(neuron_activations, data_path, output_path, mode, model
                 else:
                     x = ds[var].where((ds.centroid_i == sub['centroid_i'][i])&(ds.centroid_j == sub['centroid_j'][i]), drop=True)
                     
-                im = ax.contourf(x[0], levels=np.linspace(kwargs['vmin'], kwargs['vmax'], 101), extend='max', plot_kwargs=kwargs)
+                im = ax.contourf(x[0], levels=np.linspace(kwargs['vmin'], kwargs['vmax'], 101), extend='both', **kwargs)
                 plt.subplots_adjust(right=0.975)
                 cbar_ax = fig.add_axes([1, 0.125, 0.025, 0.83])
                 fig.colorbar(im, cbar_ax)
