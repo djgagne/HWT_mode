@@ -157,23 +157,23 @@ def main():
                     print(variable_name)
                     if variable_name not in config["plot_kwargs"].keys():
                         plot_kwargs = None
-                #    else:
-                #        plot_kwargs = config["plot_kwargs"][variable_name]
-                #    plot_neuron_composites(config["out_path"], model_name + "_" + mode,
-                #                           input_combined[mode],
-                #                           neuron_activations[model_name][mode].values,
-                #                           neuron_scores[model_name].loc[mode].values,
-                #                           variable_name, plot_kwargs=plot_kwargs)
-                #    plot_saliency_composites(config["out_path"], model_name + "_" + mode,
-                #                             saliency[model_name][mode], neuron_activations[model_name][mode].values,
-                #                             neuron_scores[model_name].loc[mode].values,
-                #                             variable_name)
-                #    plot_top_activations(config["out_path"], model_name + "_" + mode,
-                #                         input_combined[mode], meta_df[mode],
-                #                         neuron_activations[model_name][mode],
-                #                         neuron_scores[model_name].loc[mode].values,
-                #                         saliency[model_name][mode],
-                #                         variable_name, plot_kwargs=plot_kwargs)
+                    else:
+                        plot_kwargs = config["plot_kwargs"][variable_name]
+                    plot_neuron_composites(config["out_path"], model_name + "_" + mode,
+                                           input_combined[mode],
+                                           neuron_activations[model_name][mode].values,
+                                           neuron_scores[model_name].loc[mode].values,
+                                           variable_name, plot_kwargs=plot_kwargs)
+                    plot_saliency_composites(config["out_path"], model_name + "_" + mode,
+                                             saliency[model_name][mode], neuron_activations[model_name][mode].values,
+                                             neuron_scores[model_name].loc[mode].values,
+                                             variable_name)
+                    plot_top_activations(config["out_path"], model_name + "_" + mode,
+                                         input_combined[mode], meta_df[mode],
+                                         neuron_activations[model_name][mode],
+                                         neuron_scores[model_name].loc[mode].values,
+                                         saliency[model_name][mode],
+                                         variable_name, plot_kwargs=plot_kwargs)
                 plot_additional_vars(
                          neuron_activations[model_name][mode],
                          config['data_path'],
