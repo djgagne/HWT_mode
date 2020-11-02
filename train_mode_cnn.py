@@ -1,7 +1,7 @@
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
-from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites, plot_top_activations
+from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites, plot_top_activations, plot_additional_vars
 import argparse
 import yaml
 from os.path import exists, join
@@ -46,6 +46,7 @@ def main():
                                                                  config["output_variables"],
                                                                  config["meta_variables"],
                                                                  config["patch_radius"])
+
         input_combined[mode] = combine_patch_data(data_input[mode], config["input_variables"])
         if mode == "train":
             input_scaled[mode], scale_values[mode] = min_max_scale(input_combined[mode])
@@ -156,32 +157,32 @@ def main():
                     print(variable_name)
                     if variable_name not in config["plot_kwargs"].keys():
                         plot_kwargs = None
-                    else:
-                        plot_kwargs = config["plot_kwargs"][variable_name]
-                    plot_neuron_composites(config["out_path"], model_name + "_" + mode,
-                                           input_combined[mode],
-                                           neuron_activations[model_name][mode].values,
-                                           neuron_scores[model_name].loc[mode].values,
-                                           variable_name, plot_kwargs=plot_kwargs)
-                    plot_saliency_composites(config["out_path"], model_name + "_" + mode,
-                                             saliency[model_name][mode], neuron_activations[model_name][mode].values,
-                                             neuron_scores[model_name].loc[mode].values,
-                                             variable_name)
-                    plot_top_activations(config["out_path"], model_name + "_" + mode,
-                                         input_combined[mode], meta_df[mode],
-                                         neuron_activations[model_name][mode],
-                                         neuron_scores[model_name].loc[mode].values,
-                                         saliency[model_name][mode],
-                                         variable_name, plot_kwargs=plot_kwargs)
-              plot_additional_vars(
+                #    else:
+                #        plot_kwargs = config["plot_kwargs"][variable_name]
+                #    plot_neuron_composites(config["out_path"], model_name + "_" + mode,
+                #                           input_combined[mode],
+                #                           neuron_activations[model_name][mode].values,
+                #                           neuron_scores[model_name].loc[mode].values,
+                #                           variable_name, plot_kwargs=plot_kwargs)
+                #    plot_saliency_composites(config["out_path"], model_name + "_" + mode,
+                #                             saliency[model_name][mode], neuron_activations[model_name][mode].values,
+                #                             neuron_scores[model_name].loc[mode].values,
+                #                             variable_name)
+                #    plot_top_activations(config["out_path"], model_name + "_" + mode,
+                #                         input_combined[mode], meta_df[mode],
+                #                         neuron_activations[model_name][mode],
+                #                         neuron_scores[model_name].loc[mode].values,
+                #                         saliency[model_name][mode],
+                #                         variable_name, plot_kwargs=plot_kwargs)
+                plot_additional_vars(
                          neuron_activations[model_name][mode],
                          config['data_path'],
-                         config['output_path'],
-                         config['exta_plot_vars'],
+                         config['out_path'],
                          mode,
                          model_name,
                          model_config['dense_neurons'],
-                         config['plot_kwargs'])
+                         config["plot_variables"],
+                         config["plot_kwargs"])
     return
 
 

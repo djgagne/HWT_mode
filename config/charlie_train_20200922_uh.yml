@@ -1,9 +1,11 @@
-data_path: "/glade/scratch/dgagne/track_data_ncarstorm_3km_REFL_COM_ws_nc/"
+data_path: "/glade/scratch/dgagne/NSC_data/track_data_nsc_3km_REFL_COM_ws_nc/"
 patch_radius: 16
 input_variables: ["REFL_COM_curr", "U10_curr", "V10_curr"]
-output_variables: ["UP_HELI_MAX_curr"]
+output_variables: ["UP_HELI_MAX_future"]
 meta_variables: ["masks", "i", "j", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
+plot_variables: ['MLCAPE_prev', 'SHR6_prev', 'GHT_PL_500_curr'] # for variables not included in input variables,
+# Use 'SHR6_prev' to calculate 6km shear magnitude from the U and V components
 train_start_date: "2010-10-01"
 train_end_date: "2014-12-31"
 val_start_date: "2014-01-01"
@@ -18,6 +20,18 @@ plot_kwargs:
     vmin: 0
     vmax: 80
     cmap: "gist_ncar"
+  MLCAPE_prev:
+    vmin: 0
+    vmax: 5000
+    cmap: "spectral"
+  SHR6_prev:
+    vmin: 0
+    vmax: 100
+    cmap: "spectral"
+  GHT_PL_500_curr:
+    vmin: 5500
+    vmax: 6000
+    cmap: "tab20b"
 
 models:
   cnn_20200504_000:

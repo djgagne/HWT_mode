@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from os.path import join
 from scipy.ndimage import gaussian_filter
 import pandas as pd
+import xarray as xr
 
 def corr_coef_metric(y_true, y_pred):
     return np.corrcoef(y_true, y_pred)[0, 1]
@@ -129,18 +130,18 @@ def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activatio
         plt.close()
     return
 
-def plot_additional_vars(neuron_activations, data_path, output_path, variables, mode, model_name, num_neurons, plot_kwargs):
+def plot_additional_vars(neuron_activations, data_path, output_path, mode, model_name, num_neurons, variables, plot_kwargs):
     
-    neuron_activations.run_date = df.run_date.astype('datetime64[ns]').reset_index(drop=True)
-    neuron_activations.time = df.time.astype('datetime64[ns]').reset_index(drop=True) - pd.Timedelta(6, 'H')
+    neuron_activations.run_date = neuron_activations.run_date.astype('datetime64[ns]').reset_index(drop=True)
+    neuron_activations.time = neuron_activations.time.astype('datetime64[ns]').reset_index(drop=True) - pd.Timedelta(6, 'H')
     
-    for n in list(df.columns[-number_neurons:]):
+    for n in list(neuron_activations.columns[-num_neurons:]):
     
         sub = neuron_activations.sort_values(by=[n], ascending=False).iloc[:9, :].reset_index(drop=True)
         date = neuron_activations.sort_values(by=[n], ascending=False)['run_date'][:9].reset_index(drop=True)
     
         for var in variables:
-            fig, axes = plt.subplots(3, 3, figsize=(16,16), sharex=True, sharey=True)
+            fig, axes = plt.subplots(3, 3, figsize=(16, 16), sharex=True, sharey=True)
             plt.subplots_adjust(wspace=0.03, hspace=0.03)
             kwargs = plot_kwargs[var]
             
@@ -156,7 +157,7 @@ def plot_additional_vars(neuron_activations, data_path, output_path, variables, 
                 else:
                     x = ds[var].where((ds.centroid_i == sub['centroid_i'][i])&(ds.centroid_j == sub['centroid_j'][i]), drop=True)
                     
-                im = ax.contourf(x[0], levels=np.linspace(kwargs['vmin'], kwargs['vmax'],101), extend='max', plot_kwargs=kwargs)
+                im = ax.contourf(x[0], levels=np.linspace(kwargs['vmin'], kwargs['vmax'], 101), extend='max', plot_kwargs=kwargs)
                 plt.subplots_adjust(right=0.975)
                 cbar_ax = fig.add_axes([1, 0.125, 0.025, 0.83])
                 fig.colorbar(im, cbar_ax)
@@ -164,5 +165,5 @@ def plot_additional_vars(neuron_activations, data_path, output_path, variables, 
                 ax.set_yticks([], [])
                 plt.suptitle(f'Top Storm Activations for {n} - {var} - {model_name} - {mode}', fontsize=20)
                 plt.subplots_adjust(top=0.95)
-                plt.savefig(f'{output_path}/{var}_{model_name}_{training}_{n}.png', bbox_inches='tight')
+                plt.savefig(f'{output_path}/{var}_{model_name}_{mode}_{n}.png', bbox_inches='tight')
     return   
