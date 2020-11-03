@@ -8,3 +8,4 @@ tqdm
 netcdf4
 matplotlib
 scikit-learn
+tensorflow-probability

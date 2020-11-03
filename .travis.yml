@@ -1,7 +1,6 @@
 language: python
 env:
-  - PYTHON_VERSION=3.7 TENSORFLOW_VERSION=2.0.0
-  - PYTHON_VERSION=3.7 TENSORFLOW_VERSION=2.1.0
+  - PYTHON_VERSION=3.7 TENSORFLOW_VERSION=2.3.0
 
 before_install:
   - wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
@@ -14,6 +13,7 @@ install:
   - conda create -n test --yes -c conda-forge python=$PYTHON_VERSION pip numpy scipy matplotlib pandas xarray pyyaml netcdf4 scikit-learn tqdm
   - source activate test
   - pip install tensorflow==$TENSORFLOW_VERSION
+  - pip install tensorflow-probability
   - pip install pytest
   - pip install .
 script:

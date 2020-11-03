@@ -7,6 +7,7 @@ which storm mode they represent.
 ## Requirements
 HWT_mode requires Python >= 3.6. The HWT_mode package requires the following Python libraries:
 * tensorflow>=2.0
+* tensorflow-probability
 * numpy
 * scipy
 * matplotlib

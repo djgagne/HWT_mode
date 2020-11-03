@@ -6,6 +6,7 @@ from tensorflow.keras.losses import mean_squared_error, mean_absolute_error, bin
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import load_model
+from .regularizers import CovarianceRegularizer
 import tensorflow as tf
 import numpy as np
 from tqdm import trange, tqdm
@@ -49,13 +50,16 @@ class BaseConvNet(object):
         l2_alpha (float): if l2_alpha > 0 then l2 regularization with strength l2_alpha is used.
         early_stopping (int): If > 0, then early stopping of training is triggered when validation loss does not change
             for early_stopping epochs.
+        covariance_scale (float): if > 0, then a covariance regularizer is applied to the activation of the
+            last hidden layer to promote more independent activations.
 
     """
     def __init__(self, min_filters=16, filter_growth_rate=2, filter_width=5, min_data_width=4, pooling_width=2,
                  hidden_activation="relu", output_type="linear",
                  pooling="mean", use_dropout=False, dropout_alpha=0.0, dense_neurons=64,
                  data_format="channels_last", optimizer="adam", loss="mse", leaky_alpha=0.1, metrics=None,
-                 learning_rate=0.0001, batch_size=1024, epochs=10, verbose=0, l2_alpha=0, early_stopping=0, **kwargs):
+                 learning_rate=0.0001, batch_size=1024, epochs=10, verbose=0, l2_alpha=0, early_stopping=0,
+                 covariance_scale=0, **kwargs):
         self.min_filters = min_filters
         self.filter_width = filter_width
         self.filter_growth_rate = filter_growth_rate
@@ -76,6 +80,7 @@ class BaseConvNet(object):
         self.batch_size = batch_size
         self.epochs = epochs
         self.l2_alpha = l2_alpha
+        self.covariance_scale = covariance_scale
         if l2_alpha > 0:
             self.use_l2 = 1
         else:
@@ -96,6 +101,10 @@ class BaseConvNet(object):
             reg = l2(self.l2_alpha)
         else:
             reg = None
+        if self.covariance_scale > 0:
+            cov_reg = CovarianceRegularizer(self.covariance_scale)
+        else:
+            cov_reg = None
         conv_input_layer = Input(shape=conv_input_shape, name="conv_input")
         num_conv_layers = int(np.round((np.log(conv_input_shape[1]) - np.log(self.min_data_width))
                                        / np.log(self.pooling_width)))
@@ -121,7 +130,8 @@ class BaseConvNet(object):
         scn_model = Flatten(name="flatten")(scn_model)
         if self.use_dropout:
             scn_model = Dropout(rate=self.dropout_alpha)(scn_model)
-        scn_model = Dense(self.dense_neurons, name="dense_hidden", kernel_regularizer=reg)(scn_model)
+        scn_model = Dense(self.dense_neurons, name="dense_hidden",
+                          kernel_regularizer=reg, activity_regularizer=cov_reg)(scn_model)
         if self.hidden_activation == "leaky":
             scn_model = LeakyReLU(self.leaky_alpha, name="hidden_dense_activation")(scn_model)
         else:
