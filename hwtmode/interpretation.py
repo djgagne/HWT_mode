@@ -128,3 +128,41 @@ def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activatio
                     dpi=dpi, bbox_inches="tight")
         plt.close()
     return
+
+def cape_shear_modes(data_path, neuron_activations, mode='train', model_name='mod', number_neurons=4, num_storms=50, use_mask=False):
+        """
+        Match specified number of top storms of each neuron, fetch storm patch, and then plot bivariate density of each nueron in CAPE/Shear space. 
+
+        Args:
+            data_path: Absolute path of netcdf patch data
+            nueron_activations: CSV file of neuron activations 
+            mode: data partition: 'train', 'val', or 'test'
+            model_name: name of model used for training
+            number_neurons: number of nuerons in activation file
+            num_storms: number of top activated storms to use for density estimation for each neuron
+
+        Returns:
+            df: pandas dataframe of top storm values for CAPE and Shear, split by neuron
+            : bivariate density estimation plot
+        """
+    df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Neuron'])
+    for n in list(neuron_activations.columns[-number_neurons:]):
+        var = ['MLCAPE_prev', 'USHR6_prev', 'VSHR6_prev']
+        sub = neuron_activations.sort_values(by=[n], ascending=False).iloc[:num_storms, :].reset_index(drop=True)
+        dates = sub['run_date']
+        file_strings = [f'{data_path}NCARSTORM_{x.strftime("%Y%m%d")}-0000_d01_model_patches.nc' for x in dates]
+        df_vals = []
+        
+        for i, file in enumerate(file_strings):
+            ds = xr.open_dataset(file)
+            x = ds[var].where((ds.centroid_i == sub['centroid_i'][i])&(ds.centroid_j == sub['centroid_j'][i]), drop=True)
+            cape = x['MLCAPE_prev'].max().values
+            shear = np.sqrt(x['USHR6_prev']**2 + x['VSHR6_prev']**2).mean().values
+            df_vals.append([cape, shear, n])
+        df = df.append(pd.DataFrame(df_vals, columns=df.columns))
+        df[['CAPE','6km Shear']] = df[['CAPE','6km Shear']].astype('float32')
+        
+    plt.figure(figsize=(20,16))
+    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=True, alpha=0.5, thresh=0.4)
+        
+    return df 
