@@ -1,7 +1,9 @@
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
-from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites, plot_top_activations
+from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites, \
+    plot_top_activations, plot_additional_vars, cape_shear_modes, spatial_neuron_activations, \
+    diurnal_neuron_activations
 import argparse
 import yaml
 from os.path import exists, join
@@ -19,6 +21,7 @@ def main():
     parser.add_argument("-t", "--train", action="store_true", help="Run neural network training.")
     parser.add_argument("-i", "--interp", action="store_true", help="Run interpretation.")
     parser.add_argument("-p", "--plot", action="store_true", help="Plot interpretation results.")
+    parser.add_argument("-p2", "--plot2", action="store_true", help="Plot additional interpretation results.")
     args = parser.parse_args()
     if not exists(args.config):
         raise FileNotFoundError(args.config + " not found.")
@@ -173,6 +176,19 @@ def main():
                                          neuron_scores[model_name].loc[mode].values,
                                          saliency[model_name][mode],
                                          variable_name, plot_kwargs=plot_kwargs)
+        if args.plot2:
+            print("Additional Plotting...")
+            for model_name in config["models"].keys():
+                for mode in modes:
+                    neuron_activations[model_name][mode] = pd.read_csv(join(config["out_path"],
+                                            f"neuron_activations_{model_name}_{mode}.csv"),
+                                            index_col="index")
+                    cape_shear_modes(neuron_activations[model_name][mode], config["output_path"], config["data_path"],
+                                     model_name, mode, num_storms=50)
+                    spatial_neuron_activations(neuron_activations[model_name][mode], config["output_path"], model_name,
+                                               mode, quant_thresh=0.9)
+                    diurnal_neuron_activations(neuron_activations[model_name][mode], config["output_path"], model_name,
+                                               mode, quant_thresh=0.9)
     return
 
 
