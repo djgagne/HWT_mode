@@ -35,7 +35,7 @@ models:
     use_dropout: 1
     dropout_alpha: 0.2
     epochs: 20
-    dense_neurons: 16
+    dense_neurons: 9
     l2_alpha: 0.001
     early_stopping: 0
     verbose: 1
