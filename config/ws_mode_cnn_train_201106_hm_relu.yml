@@ -13,7 +13,8 @@ test_end_date: "2017-06-30"
 out_path: "/glade/p/cisl/aiml/ggantos/HWT/mode_cnn_hm_201106_relu/"
 classifier: 1
 classifier_threshold: 0.04 #75 #0.04
-plot_kwargs:
+covariance_scale: 1000
+lot_kwargs:
   REFL_COM_curr:
     vmin: 0
     vmax: 80
