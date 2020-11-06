@@ -129,24 +129,24 @@ def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activatio
         plt.close()
     return
 
-def cape_shear_modes(data_path, neuron_activations, mode='train', model_name='mod', number_neurons=4, num_storms=50, use_mask=False):
-        """
-        Match specified number of top storms of each neuron, fetch storm patch, and then plot bivariate density of each nueron in CAPE/Shear space. 
+def cape_shear_modes(data_path, output_path, neuron_activations, model_name, mode='train', num_storms=50, use_mask=False):
+    """
+    Match specified number of top storms of each neuron, fetch storm patch, and then plot bivariate density of each nueron in CAPE/Shear space. 
 
-        Args:
-            data_path: Absolute path of netcdf patch data
-            nueron_activations: CSV file of neuron activations 
-            mode: data partition: 'train', 'val', or 'test'
-            model_name: name of model used for training
-            number_neurons: number of nuerons in activation file
-            num_storms: number of top activated storms to use for density estimation for each neuron
+    Args:
+        data_path: Absolute path of netcdf patch data
+        output_path: Path to save output
+        nueron_activations: CSV file of neuron activations 
+        mode: data partition: 'train', 'val', or 'test'
+        model_name: name of model used for training
+        num_storms: number of top activated storms to use for density estimation for each neuron
 
-        Returns:
-            df: pandas dataframe of top storm values for CAPE and Shear, split by neuron
-            : bivariate density estimation plot
-        """
+    Returns:
+        : bivariate density estimation plot
+    """
     df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Neuron'])
-    for n in list(neuron_activations.columns[-number_neurons:]):
+    cols = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
+    for n in cols:
         var = ['MLCAPE_prev', 'USHR6_prev', 'VSHR6_prev']
         sub = neuron_activations.sort_values(by=[n], ascending=False).iloc[:num_storms, :].reset_index(drop=True)
         dates = sub['run_date']
@@ -163,6 +163,9 @@ def cape_shear_modes(data_path, neuron_activations, mode='train', model_name='mo
         df[['CAPE','6km Shear']] = df[['CAPE','6km Shear']].astype('float32')
         
     plt.figure(figsize=(20,16))
-    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=True, alpha=0.5, thresh=0.4)
-        
-    return df 
+    sns.set(font_scale=2)
+    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=True, alpha=0.5, clip=(0,8000))
+    plt.title(f'Storm Activations for Top {num_storms} Storms')
+    plt.savefig(f'{output_path}/CAPE_Shear.png', bbox_inches='tight')
+           
+    return
