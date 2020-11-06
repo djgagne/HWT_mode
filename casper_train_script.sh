@@ -15,4 +15,4 @@ ncar_pylib ncar_20200417
 export PATH="/glade/work/ggantos/ncar_20200417/bin:$PATH"
 
 pip install /glade/work/ggantos/HWT_mode/.
-python -u train_mode_cnn.py config/ws_mode_cnn_train_201103_hm.yml -t -i -p
+python -u train_mode_cnn.py config/ws_mode_cnn_train_201106_hm_patch64.yml -t -i -p
