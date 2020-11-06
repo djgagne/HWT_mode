@@ -129,7 +129,7 @@ def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activatio
         plt.close()
     return
 
-def cape_shear_modes(data_path, output_path, neuron_activations, mode, model_name, num_storms=50):
+def cape_shear_modes(neuron_activations, output_path, data_path, model_name, mode, num_storms=50):
     """
     Match specified number of top storms of each neuron, fetch storm patch,
     and then plot bivariate density of each nueron in CAPE/Shear space.
