@@ -2,7 +2,7 @@ from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, st
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
 from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites, \
-    plot_top_activations, plot_additional_vars, cape_shear_modes, spatial_neuron_activations, \
+    plot_top_activations, cape_shear_modes, spatial_neuron_activations, \
     diurnal_neuron_activations
 import argparse
 import yaml
