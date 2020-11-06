@@ -129,20 +129,19 @@ def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activatio
         plt.close()
     return
 
-def cape_shear_modes(data_path, output_path, neuron_activations, model_name, mode='train', num_storms=50, use_mask=False):
+def cape_shear_modes(data_path, output_path, neuron_activations, mode, model_name, num_storms=50):
     """
-    Match specified number of top storms of each neuron, fetch storm patch, and then plot bivariate density of each nueron in CAPE/Shear space. 
-
+    Match specified number of top storms of each neuron, fetch storm patch,
+    and then plot bivariate density of each nueron in CAPE/Shear space.
     Args:
         data_path: Absolute path of netcdf patch data
         output_path: Path to save output
-        nueron_activations: CSV file of neuron activations 
+        neuron_activations: CSV file of neuron activations
         mode: data partition: 'train', 'val', or 'test'
         model_name: name of model used for training
         num_storms: number of top activated storms to use for density estimation for each neuron
 
     Returns:
-        : bivariate density estimation plot
     """
     df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Neuron'])
     cols = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
@@ -152,20 +151,88 @@ def cape_shear_modes(data_path, output_path, neuron_activations, model_name, mod
         dates = sub['run_date']
         file_strings = [f'{data_path}NCARSTORM_{x.strftime("%Y%m%d")}-0000_d01_model_patches.nc' for x in dates]
         df_vals = []
-        
+
         for i, file in enumerate(file_strings):
             ds = xr.open_dataset(file)
-            x = ds[var].where((ds.centroid_i == sub['centroid_i'][i])&(ds.centroid_j == sub['centroid_j'][i]), drop=True)
+            x = ds[var].where((ds.centroid_i == sub['centroid_i'][i]) & (ds.centroid_j == sub['centroid_j'][i]),
+                              drop=True)
             cape = x['MLCAPE_prev'].max().values
-            shear = np.sqrt(x['USHR6_prev']**2 + x['VSHR6_prev']**2).mean().values
+            shear = np.sqrt(x['USHR6_prev'] ** 2 + x['VSHR6_prev'] ** 2).mean().values
             df_vals.append([cape, shear, n])
         df = df.append(pd.DataFrame(df_vals, columns=df.columns))
-        df[['CAPE','6km Shear']] = df[['CAPE','6km Shear']].astype('float32')
-        
-    plt.figure(figsize=(20,16))
+        df[['CAPE', '6km Shear']] = df[['CAPE', '6km Shear']].astype('float32')
+
+    plt.figure(figsize=(20, 16))
     sns.set(font_scale=2)
-    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=True, alpha=0.5, clip=(0,8000))
+    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=True, alpha=0.8, thresh=0.5, clip=(0, 8000))
     plt.title(f'Storm Activations for Top {num_storms} Storms')
-    plt.savefig(f'{output_path}/CAPE_Shear.png', bbox_inches='tight')
-           
+    plt.savefig(f'{output_path}{model_name}/CAPE_Shear_{mode}.png', bbox_inches='tight')
+
     return
+
+
+def spatial_neuron_activations(neuron_activations, output_path, model_name, mode, quant_thresh=0.9):
+    """
+    Plot spatial distribution of top activated storms for each neuron
+    Args:
+        neuron_activations: CSV file of neuron activations
+        output_path: Output path from config
+        model_name: Model name from config
+        mode: Data partition (train, va, or test)
+        quant_thresh: Quantile to select storms that exceed threshold
+
+    Returns:
+    """
+    fig = plt.figure(figsize=(20, 16))
+    lcc = ccrs.LambertConformal(central_longitude=-97.5, standard_parallels=(38.5, 38.5))
+    ax = fig.add_subplot(1, 1, 1, projection=lcc)
+    ax.set_extent([-120, -74, 25, 50], crs=ccrs.PlateCarree())
+    ax.add_feature(cfeature.LAND)
+    ax.add_feature(cfeature.OCEAN)
+    ax.add_feature(cfeature.COASTLINE)
+    ax.add_feature(cfeature.BORDERS)
+    ax.add_feature(cfeature.LAKES, alpha=0.5)
+    ax.add_feature(cfeature.STATES)
+
+    neurons = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
+    colors = ['r', 'g', 'b', 'k', 'y', 'orange', 'purple', 'brown', 'w']
+    for i, neuron in enumerate(neurons):
+        data = neuron_activations[neuron_activations[neuron] > neuron_activations[neuron].quantile(quant_thresh)]
+        var = data[neuron]
+        plt.scatter(data['centroid_lon'], data['centroid_lat'], transform=ccrs.PlateCarree(), label=None,
+                    color=colors[i], alpha=0.25, s=2.5)
+        sns.kdeplot(data['centroid_lon'], data['centroid_lat'], data=var, levels=3, transform=ccrs.PlateCarree(),
+                    linewidths=5, thresh=0, color=colors[i], linestyles='-',
+                    label=f'Neuron {i}', cummulative=True)
+        plt.legend(prop={'size': 20})
+    plt.title(f'Storm Activations Above {quant_thresh} Quantile - {mode}', fontsize=30)
+    plt.savefig(f'{output_path}{model_name}/Spatial_activations_{mode}.png', bbox_inches='tight')
+
+
+def diurnal_neuron_activations(neuron_activations, output_path, model_name, mode, quant_thresh=0.9):
+    """
+    Plot diurnal distribution of each neuron
+    Args:
+        neuron_activations: CSV file of neuron activations
+        output_path: Base output path from config
+        model_name: Model name from config
+        mode: Data partition (train, val, test)
+        quant_thresh: Quantile to select storms that exceed threshold
+
+    Returns:
+    """
+    fig, ax = plt.subplots(figsize=(20, 8))
+
+    df = neuron_activations.copy()
+    neurons = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
+    colors = ['r', 'g', 'b', 'k', 'y', 'orange', 'purple', 'brown', 'w']
+    for i, neuron in enumerate(neurons):
+        data = df[df[neuron] > df[neuron].quantile(quant_thresh)].groupby(df['time'].dt.hour)[neuron].count()
+        im = plt.plot(data, linewidth=4, alpha=1, label=neuron, color=colors[i])
+    plt.legend(prop={'size': 20})
+    plt.title(f'Diurnal Distribution of Storm Activations Above {quant_thresh} Quantile - {mode}', fontsize=30)
+    ax.set_ylabel('Number of Storms', fontsize=20)
+    ax.set_xlabel('UTC - 6', fontsize=20)
+    ax.xaxis.set_tick_params(labelsize=16)
+    ax.yaxis.set_tick_params(labelsize=16)
+    plt.savefig(f'{output_path}{model_name}/Diurnal_activations_{mode}.png', bbox_inches='tight')
