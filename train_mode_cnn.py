@@ -180,14 +180,14 @@ def main():
             print("Additional Plotting...")
             for model_name in config["models"].keys():
                 for mode in modes:
-                    neuron_activations[model_name][mode] = pd.read_csv(join(config["out_path"],
+                    neuron_activations = pd.read_csv(join(config["out_path"],
                                             f"neuron_activations_{model_name}_{mode}.csv"),
                                             index_col="index")
-                    cape_shear_modes(neuron_activations[model_name][mode], config["out_path"], config["data_path"],
+                    cape_shear_modes(neuron_activations, config["out_path"], config["data_path"],
                                      model_name, mode, num_storms=50)
-                    spatial_neuron_activations(neuron_activations[model_name][mode], config["out_path"], model_name,
+                    spatial_neuron_activations(neuron_activations, config["out_path"], model_name,
                                                mode, quant_thresh=0.9)
-                    diurnal_neuron_activations(neuron_activations[model_name][mode], config["out_path"], model_name,
+                    diurnal_neuron_activations(neuron_activations, config["out_path"], model_name,
                                                mode, quant_thresh=0.9)
     return
 
