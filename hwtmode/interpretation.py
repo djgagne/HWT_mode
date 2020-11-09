@@ -1,5 +1,7 @@
 import numpy as np
 from sklearn.metrics import roc_auc_score
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from os.path import join
 from scipy.ndimage import gaussian_filter
@@ -148,7 +150,7 @@ def cape_shear_modes(neuron_activations, output_path, data_path, model_name, mod
     for n in cols:
         var = ['MLCAPE_prev', 'USHR6_prev', 'VSHR6_prev']
         sub = neuron_activations.sort_values(by=[n], ascending=False).iloc[:num_storms, :].reset_index(drop=True)
-        dates = sub['run_date']
+        dates = sub['run_date'].astype('datetime64[ns]')
         file_strings = [f'{data_path}NCARSTORM_{x.strftime("%Y%m%d")}-0000_d01_model_patches.nc' for x in dates]
         df_vals = []
 
@@ -224,6 +226,7 @@ def diurnal_neuron_activations(neuron_activations, output_path, model_name, mode
     fig, ax = plt.subplots(figsize=(20, 8))
 
     df = neuron_activations.copy()
+    df.time = df.time.astype('datetime64[ns]').reset_index(drop=True) - pd.Timedelta(6, 'H')
     neurons = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
     colors = ['r', 'g', 'b', 'k', 'y', 'orange', 'purple', 'brown', 'w']
     for i, neuron in enumerate(neurons):
