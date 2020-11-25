@@ -5,6 +5,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from os.path import join
 from scipy.ndimage import gaussian_filter
+import dask.dataframe as dd
 import pandas as pd
 import seaborn as sns
 import xarray as xr
