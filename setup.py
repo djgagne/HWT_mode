@@ -12,7 +12,8 @@ requirements = ["numpy",
                 "netcdf4",
                 "matplotlib",
                 "seaborn",
-                "scikit-learn"]
+                "scikit-learn",
+                "cartopy"]
 
 setup(name="hwtmode",
       version="0.1",
