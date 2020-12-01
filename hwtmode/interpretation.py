@@ -171,7 +171,7 @@ def cape_shear_modes(neuron_activations, output_path, data_path, model_name, mod
     sns.scatterplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', alpha=0.5, size='Activation', sizes=(1, 200), edgecolors='k', linewidth=1)
     sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=False, alpha=1, thresh=0.4, levels=3, clip=(0,6000), linewidths=8, legend=False)
     plt.title(f'Storm Activations for Top {num_storms} Storms ({mode})')
-    plt.savefig(f'{out_path}/CAPE_Shear_{model_name}.png', bbox_inches='tight')
+    plt.savefig(join(out_path, f'CAPE_Shear_{model_name}.png'), bbox_inches='tight')
     
     return
 
