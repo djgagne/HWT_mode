@@ -5,6 +5,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from os.path import join
 from scipy.ndimage import gaussian_filter
+import dask.dataframe as dd
 import pandas as pd
 import seaborn as sns
 import xarray as xr
@@ -136,47 +137,43 @@ def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activatio
         plt.close()
     return
 
-def cape_shear_modes(neuron_activations, output_path, data_path, model_name, mode, num_storms=50):
+def cape_shear_modes(neuron_activations, output_path, data_path, model_name, mode, num_storms=5000):
     """
     Match specified number of top storms of each neuron, fetch storm patch,
     and then plot bivariate density of each nueron in CAPE/Shear space.
     Args:
-        data_path: Absolute path of netcdf patch data
-        output_path: Path to save output
         neuron_activations: CSV file of neuron activations
-        mode: data partition: 'train', 'val', or 'test'
+        output_path: Path to save output
+        data_path: Absolute path of netcdf patch data
         model_name: name of model used for training
+        mode: data partition: 'train', 'val', or 'test'
         num_storms: number of top activated storms to use for density estimation for each neuron
 
     Returns:
     """
-    df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Neuron'])
+    df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Activation', 'Neuron'])
     cols = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
-    for n in cols:
-        var = ['MLCAPE_prev', 'USHR6_prev', 'VSHR6_prev']
-        sub = neuron_activations.sort_values(by=[n], ascending=False).iloc[:num_storms, :].reset_index(drop=True)
-        dates = sub['run_date'].astype('datetime64[ns]')
-        file_strings = [f'{data_path}NCARSTORM_{x.strftime("%Y%m%d")}-0000_d01_model_patches.nc' for x in dates]
-        df_vals = []
-
-        for i, file in enumerate(file_strings):
-            ds = xr.open_dataset(file)
-            x = ds[var].where((ds.centroid_i == sub['centroid_i'][i]) & (ds.centroid_j == sub['centroid_j'][i]),
-                              drop=True)
-            cape = x['MLCAPE_prev'].max().values
-            shear = np.sqrt(x['USHR6_prev'] ** 2 + x['VSHR6_prev'] ** 2).mean().values
-            df_vals.append([cape, shear, n])
-        df = df.append(pd.DataFrame(df_vals, columns=df.columns))
-        df[['CAPE', '6km Shear']] = df[['CAPE', '6km Shear']].astype('float32')
-
-    plt.figure(figsize=(20, 16))
+    
+    dates = sorted(set(neuron_activations['run_date'].astype('datetime64[ns]')))
+    file_strings = [f'{data_path}track_step_NCARSTORM_d01_{x.strftime("%Y%m%d")}-0000.csv' for x in dates]
+    ddf = dd.read_csv(file_strings).compute()
+    
+    for neuron in cols:
+        sub = neuron_activations.sort_values(by=[neuron], ascending=False).iloc[:num_storms, :]
+        activation = sub[neuron].values
+        x = ddf.iloc[sub.index, :]
+        cape = x['MLCAPE-potential_max'].values
+        shear = np.sqrt(x['USHR6-potential_mean']**2 + x['USHR6-potential_mean']**2).values
+        df = df.append(pd.DataFrame(zip(cape, shear, activation, [neuron] * num_storms), columns=df.columns))
+        
+    plt.figure(figsize=(20,16))
     sns.set(font_scale=2)
-    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=True, alpha=0.8, thresh=0.5, clip=(0, 8000))
-    plt.title(f'Storm Activations for Top {num_storms} Storms')
-    plt.savefig(f'{output_path}{model_name}/CAPE_Shear_{mode}.png', bbox_inches='tight')
-
+    sns.scatterplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', alpha=0.5, size='Activation', sizes=(1, 200), edgecolors='k', linewidth=1)
+    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=False, alpha=1, thresh=0.4, levels=3, clip=(0,6000), linewidths=8, legend=False)
+    plt.title(f'Storm Activations for Top {num_storms} Storms ({mode})')
+    plt.savefig(join(out_path, f'CAPE_Shear_{model_name}.png'), bbox_inches='tight')
+    
     return
-
 
 def spatial_neuron_activations(neuron_activations, output_path, model_name, mode, quant_thresh=0.9):
     """
