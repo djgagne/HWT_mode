@@ -61,6 +61,7 @@ def main():
             labels[mode] = np.where(out_max[mode] >= config["classifier_threshold"], 1, 0)
         else:
             labels[mode] = out_max[mode]
+    del data_input, out_max
     if not exists(config["out_path"]):
         makedirs(config["out_path"])
     scale_values["train"].to_csv(join(config["out_path"], "scale_values.csv"),
@@ -132,8 +133,10 @@ def main():
                     neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
                                                                         neuron_activations[model_name][mode][neuron_columns].values,
                                                         metric="r")
+                del saliency[model_name][mode]
             neuron_scores[model_name].to_csv(join(config["out_path"],
                                              f"neuron_scores_{model_name}.csv"), index_label="mode")
+            del models[model_name], neuron_scores[model_name]
     if args.plot:
         print("Begin plotting")
         if "plot_kwargs" not in config.keys():
@@ -176,6 +179,7 @@ def main():
                                          neuron_scores[model_name].loc[mode].values,
                                          saliency[model_name][mode],
                                          variable_name, plot_kwargs=plot_kwargs)
+                del saliency[model_name][mode]
     if args.plot2:
         print("Additional Plotting...")
         for model_name in config["models"].keys():
