@@ -153,9 +153,10 @@ def cape_shear_modes(neuron_activations, output_path, data_path, model_name, mod
     """
     df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Activation', 'Neuron'])
     cols = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
+    csv_path = data_path.rstrip('/')[:-2] + 'csv'
     
     dates = sorted(set(neuron_activations['run_date'].astype('datetime64[ns]')))
-    file_strings = [f'{data_path}track_step_NCARSTORM_d01_{x.strftime("%Y%m%d")}-0000.csv' for x in dates]
+    file_strings = [join(csv_path, f'track_step_NCARSTORM_d01_{x.strftime("%Y%m%d")}-0000.csv') for x in dates]
     ddf = dd.read_csv(file_strings).compute()
     
     for neuron in cols:
@@ -166,12 +167,16 @@ def cape_shear_modes(neuron_activations, output_path, data_path, model_name, mod
         shear = np.sqrt(x['USHR6-potential_mean']**2 + x['USHR6-potential_mean']**2).values
         df = df.append(pd.DataFrame(zip(cape, shear, activation, [neuron] * num_storms), columns=df.columns))
         
-    plt.figure(figsize=(20,16))
-    sns.set(font_scale=2)
-    sns.scatterplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', alpha=0.5, size='Activation', sizes=(1, 200), edgecolors='k', linewidth=1)
-    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=False, alpha=1, thresh=0.4, levels=3, clip=(0,6000), linewidths=8, legend=False)
+    plt.figure(figsize=(20, 16))
+    sns.set(font_scale=1.5)
+    colors = sns.color_palette("deep", len(cols))
+
+    sns.scatterplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', alpha=0.5, size='Activation', sizes=(1, 200),
+                    palette=colors, edgecolors='k', linewidth=1)
+    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=False, alpha=1, thresh=0.4, levels=3,
+                palette=colors, clip=(0, 6000), linewidths=8, legend=False)
     plt.title(f'Storm Activations for Top {num_storms} Storms ({mode})')
-    plt.savefig(join(out_path, f'CAPE_Shear_{model_name}.png'), bbox_inches='tight')
+    plt.savefig(join(output_path, f'CAPE_Shear_{model_name}_{mode}.png'), bbox_inches='tight')
     
     return
 
@@ -199,7 +204,8 @@ def spatial_neuron_activations(neuron_activations, output_path, model_name, mode
     ax.add_feature(cfeature.STATES)
 
     neurons = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
-    colors = ['r', 'g', 'b', 'k', 'y', 'orange', 'purple', 'brown', 'w']
+    colors = sns.color_palette("deep", len(neurons))
+
     for i, neuron in enumerate(neurons):
         data = neuron_activations[neuron_activations[neuron] > neuron_activations[neuron].quantile(quant_thresh)]
         var = data[neuron]
@@ -208,9 +214,9 @@ def spatial_neuron_activations(neuron_activations, output_path, model_name, mode
         sns.kdeplot(data['centroid_lon'], data['centroid_lat'], data=var, levels=3, transform=ccrs.PlateCarree(),
                     linewidths=5, thresh=0, color=colors[i], linestyles='-',
                     label=f'Neuron {i}', cummulative=True)
-        plt.legend(prop={'size': 20})
+        plt.legend(prop={'size': 16})
     plt.title(f'Storm Activations Above {quant_thresh} Quantile - {mode}', fontsize=30)
-    plt.savefig(f'{output_path}{model_name}/Spatial_activations_{mode}.png', bbox_inches='tight')
+    plt.savefig(join(output_path, f'Spatial_activations_{model_name}_{mode}.png'), bbox_inches='tight')
 
 
 def diurnal_neuron_activations(neuron_activations, output_path, model_name, mode, quant_thresh=0.9):
@@ -230,14 +236,15 @@ def diurnal_neuron_activations(neuron_activations, output_path, model_name, mode
     df = neuron_activations.copy()
     df.time = df.time.astype('datetime64[ns]').reset_index(drop=True) - pd.Timedelta(6, 'H')
     neurons = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
-    colors = ['r', 'g', 'b', 'k', 'y', 'orange', 'purple', 'brown', 'w']
+    colors = sns.color_palette("deep", len(neurons))
+
     for i, neuron in enumerate(neurons):
         data = df[df[neuron] > df[neuron].quantile(quant_thresh)].groupby(df['time'].dt.hour)[neuron].count()
-        im = plt.plot(data, linewidth=4, alpha=1, label=neuron, color=colors[i])
-    plt.legend(prop={'size': 20})
+        plt.plot(data, linewidth=4, alpha=1, label=neuron, color=colors[i])
+    plt.legend(prop={'size': 16})
     plt.title(f'Diurnal Distribution of Storm Activations Above {quant_thresh} Quantile - {mode}', fontsize=30)
     ax.set_ylabel('Number of Storms', fontsize=20)
     ax.set_xlabel('UTC - 6', fontsize=20)
     ax.xaxis.set_tick_params(labelsize=16)
     ax.yaxis.set_tick_params(labelsize=16)
-    plt.savefig(f'{output_path}{model_name}/Diurnal_activations_{mode}.png', bbox_inches='tight')
+    plt.savefig(join(output_path, f'Diurnal_activations_{model_name}_{mode}.png'), bbox_inches='tight')
