@@ -190,9 +190,9 @@ def main():
                 cape_shear_modes(neuron_activations, config["out_path"], config["data_path"],
                                  model_name, mode, num_storms=5000)
                 spatial_neuron_activations(neuron_activations, config["out_path"], model_name,
-                                           mode, quant_thresh=0.99)
+                                           mode, quant_thresh=0.95)
                 diurnal_neuron_activations(neuron_activations, config["out_path"], model_name,
-                                           mode, quant_thresh=0.99)
+                                           mode, quant_thresh=0.95)
     return
 
 
