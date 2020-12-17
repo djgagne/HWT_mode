@@ -1,4 +1,3 @@
-from memory_profiler import profile
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
@@ -15,8 +14,6 @@ import xarray as xr
 import pandas as pd
 
 
-fp=open('memory_profiler.log','w+')
-@profile(precision=4, stream=fp)
 def main():
     # Parse arguments
     parser = argparse.ArgumentParser()
@@ -51,7 +48,8 @@ def main():
                                                                  config["input_variables"],
                                                                  config["output_variables"],
                                                                  config["meta_variables"],
-                                                                 config["patch_radius"])
+                                                                 config["patch_radius"],
+                                                                 config["mask"])
         input_combined[mode] = combine_patch_data(data_input[mode], config["input_variables"])
         if mode == "train":
             input_scaled[mode], scale_values[mode] = min_max_scale(input_combined[mode])

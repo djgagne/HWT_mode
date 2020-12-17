@@ -8,7 +8,7 @@ import pandas as pd
 
 def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_variables: list,
                      output_variables: list, meta_variables: list,
-                     patch_radius=None) -> tuple:
+                     patch_radius=None, mask=False) -> tuple:
     """
     Iterate through all patch files and load the input and output variables into separate py:class:`xarray.Dataset`
     objects.
@@ -21,6 +21,7 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
         output_variables (list): List of output variable names.
         meta_variables (list): List of metadata variables.
         patch_radius (int): Number of grid cells on either side of center to include.
+        mask (bool): True if input variables should be masked
 
     Returns:
         input_data (:class:`xarray.Dataset`): Datasetcontaining input variables as separate
@@ -49,13 +50,17 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
             col_mid = int(np.round(((ds["col"].max() - ds["col"].min()) / 2).values[()]))
             row_slice = slice(row_mid - patch_radius, row_mid + patch_radius)
             col_slice = slice(col_mid - patch_radius, col_mid + patch_radius)
-            input_data_list.append(ds[input_variables].sel(row=row_slice, col=col_slice).compute())
+            if mask:
+                masked = ds[input_variables].where(ds["masks"] > 0, 0)
+                input_data_list.append(masked.sel(row=row_slice, col=col_slice).compute())
+            else:
+                input_data_list.append(ds[input_variables].sel(row=row_slice, col=col_slice).compute())
             output_data_list.append(ds[output_variables].sel(row=row_slice, col=col_slice).compute())
-            meta_data_list.append(ds[meta_variables].sel(row=row_slice, col=col_slice).compute())
+            meta_data_list.append(ds[meta_variables].sel(row=row_slice, col=col_slice).compute())                
         else:
             input_data_list.append(ds[input_variables].compute())
             output_data_list.append(ds[output_variables].compute())
-            meta_data_list.append(ds[meta_variables].compute())
+            meta_data_list.append(ds[meta_variables].compute())            
         ds.close()
     input_data = xr.concat(input_data_list, dim="p")
     output_data = xr.concat(output_data_list, dim="p")
