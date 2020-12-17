@@ -21,3 +21,5 @@ script:
   - python -u train_mode_cnn.py config/ws_mode_cnn_train_small.yml -t -i -p
 notifications:
   email: true
+after_failure:
+  - cat MSBuild_*.failure.txt
