@@ -70,7 +70,6 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
     meta_data["p"] = np.arange(meta_data["p"].size)
     return input_data, output_data, meta_data
 
-
 def get_meta_scalars(meta_data):
     meta_vars = list(meta_data.data_vars.keys())
     scalar_vars = []
