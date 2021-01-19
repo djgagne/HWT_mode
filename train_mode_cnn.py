@@ -39,6 +39,10 @@ def main():
     input_scaled = {}
     scale_values = {}
     predictions = {}
+    if exists('mask') in config:
+        mask = config['mask']
+    else:
+        mask = False
     modes = ["train", "val", "test"]
     # Load training, validation, and testing data
     for mode in modes:
@@ -48,7 +52,8 @@ def main():
                                                                  config["input_variables"],
                                                                  config["output_variables"],
                                                                  config["meta_variables"],
-                                                                 config["patch_radius"])
+                                                                 config["patch_radius"],
+                                                                 mask)
         input_combined[mode] = combine_patch_data(data_input[mode], config["input_variables"])
         if mode == "train":
             input_scaled[mode], scale_values[mode] = min_max_scale(input_combined[mode])
