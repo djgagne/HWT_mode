@@ -253,6 +253,16 @@ def diurnal_neuron_activations(neuron_activations, output_path, model_name, mode
 
 
 def plot_cluster_dist(data, output_path, cluster_type, n_cluster):
+    """
+    Bar plot of clusters by percentage.
+    Args:
+        data: Neuron activation dataframe with cluster labels
+        output_path: Output path to save to
+        cluster_type: Cluster algorithm used for file naming
+        n_cluster: Number of unique clusters in clustering algorithm
+
+    Returns:
+    """
 
     plt.figure(figsize=(12, 6))
     counts = Counter(data['cluster'])
@@ -265,6 +275,16 @@ def plot_cluster_dist(data, output_path, cluster_type, n_cluster):
 
 
 def plot_prob_dist(data, output_path, cluster_type, n_cluster):
+    """
+    KDE plot of cluster probabilities.
+    Args:
+        data: Neuron activation dataframe with cluster labels
+        output_path: Output path to save to
+        cluster_type: Cluster algorithm used for file naming
+        n_cluster: Number of unique clusters in clustering algorithm
+
+    Returns:
+    """
 
     plt.figure(figsize=(12, 6))
     sns.displot(data=data, x='cluster_prob', hue='cluster', multiple='stack', palette='dark', kind='kde', aspect=2)
@@ -275,7 +295,16 @@ def plot_prob_dist(data, output_path, cluster_type, n_cluster):
 
 
 def plot_prob_cdf(data, output_path, cluster_type, n_cluster):
+    """
+    Plot CDF of cluster label probabilities.
+    Args:
+        data: Neuron activation dataframe with cluster labels
+        output_path: Output path to save to
+        cluster_type: Cluster algorithm used for file naming
+        n_cluster: Number of unique clusters in clustering algorithm
 
+    Returns:
+    """
     plt.figure(figsize=(12, 6))
     kwargs = {'cumulative': True}
     sns.distplot(data['cluster_prob'], hist_kws=kwargs, kde_kws=kwargs)
@@ -285,6 +314,18 @@ def plot_prob_cdf(data, output_path, cluster_type, n_cluster):
 
 def plot_storm_clusters(patch_data_path, output_path, cluster_data, cluster_method, seed,
                         n_storms=25, prob_type='highest'):
+    """
+    Args:
+        patch_data_path: Path where storm patches are located.
+        output_path: Output path to save file.
+        cluster_data: Neuron activation dataframe with cluster labels
+        cluster_method: Cluster algorithm used for file naming
+        seed: Random seed used for sampling.
+        n_storms: Number of storms to plot per cluster (should be an even square - 4, 9. 16, 25, ...)
+        prob_type: Probability of storms to plot (only valid for 'GMM'). Should be 'highest', 'lowest', or 'random'
+
+    Returns:
+    """
 
     ms_mph = 2.237
     file_dates = sorted(pd.to_datetime(cluster_data['run_date'].unique()))
