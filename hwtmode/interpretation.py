@@ -331,18 +331,14 @@ def plot_storm_clusters(patch_data_path, output_path, cluster_data, cluster_meth
     file_dates = sorted(pd.to_datetime(cluster_data['run_date'].unique()))
     file_paths = sorted(
         [join(patch_data_path, f'NCARSTORM_{x.strftime("%Y%m%d")}-0000_d01_model_patches.nc') for x in file_dates])
-    print('RIGHT HERE FIRST.')
     ds = xr.open_mfdataset(file_paths, combine='nested', concat_dim='p')
-    print('RIGHT HERE SECOND.')
-    print(len(cluster_data))
-    print(len(ds['p']))
     wind_slice = (slice(8, None, 12), slice(8, None, 12))
     x_mesh, y_mesh = np.meshgrid(range(len(ds['row'])), range(len(ds['col'])))
 
     n_clusters = cluster_data['cluster'].nunique()
 
     for cluster in range(n_clusters):
-        print(cluster)
+
         if cluster_method == 'Spectral':
             sub = cluster_data[cluster_data['cluster'] == cluster].sample(n_storms, random_state=seed)
         elif cluster_method == 'GMM':
@@ -355,7 +351,6 @@ def plot_storm_clusters(patch_data_path, output_path, cluster_data, cluster_meth
 
         storm_idxs = sub.index.values
         x = ds[['REFL_COM_curr', 'U10_curr', 'V10_curr']].isel(p=storm_idxs)
-        print('Subset selected.')
         fig, axes = plt.subplots(int(np.sqrt(n_storms)), int(np.sqrt(n_storms)), figsize=(16, 16), sharex=True, sharey=True)
         plt.subplots_adjust(wspace=0.03, hspace=0.03)
 

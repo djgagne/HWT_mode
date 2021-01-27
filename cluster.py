@@ -45,6 +45,7 @@ def main():
     elif plot_mode == 'test':
         plot_data = pd.read_csv(join(base_neuron_act_path, test_activations))
 
+    cluster_dfs = {}
 
     for cluster_type in cluster_types:
 
@@ -52,27 +53,29 @@ def main():
 
             if cluster_type == 'GMM':
 
+                cluster_dfs[cluster_type] = plot_data
                 X = train.loc[:, train.columns.str.contains('neuron')]
                 mod = GaussianMixture(n_components=n_cluster, **config['GMM_kwargs']).fit(X)
-                max_cluster_prob = mod.predict_proba(
-                    plot_data.loc[:, plot_data.columns.str.contains('neuron')]).max(axis=1)
-                plot_data['cluster_prob'] = max_cluster_prob
-                plot_data['cluster'] = mod.predict(plot_data.loc[:, plot_data.columns.str.contains('neuron')])
-                plot_prob_dist(plot_data, output_path, cluster_type, n_cluster)
-                plot_prob_cdf(plot_data, output_path, cluster_type, n_cluster)
+                cluster_prob = mod.predict_proba(
+                    cluster_dfs[cluster_type].loc[:, cluster_dfs[cluster_type].columns.str.contains('neuron')])
+                cluster_dfs[cluster_type]['cluster_prob'] = cluster_prob.max(axis=1)
+                cluster_dfs[cluster_type]['cluster'] = mod.predict(
+                    cluster_dfs[cluster_type].loc[:, cluster_dfs[cluster_type].columns.str.contains('neuron')])
+                plot_prob_dist(cluster_dfs[cluster_type], output_path, cluster_type, n_cluster)
+                plot_prob_cdf(cluster_dfs[cluster_type], output_path, cluster_type, n_cluster)
 
             elif cluster_type == 'Spectral':
 
-                X = train.sample(n_samps, random_state=seed)
-                X_train = X.loc[:, X.columns.str.contains('neuron')]
-                mod = SpectralClustering(n_components=n_cluster, **config["Spectral_kwargs"]).fit(X_train)
-                plot_data = X
-                plot_data['cluster'] = mod.labels_
+                cluster_dfs[cluster_type] = train.sample(n_samps, random_state=seed)
+                X = cluster_dfs[cluster_type].loc[:, cluster_dfs[cluster_type].columns.str.contains('neuron')]
+                mod = SpectralClustering(n_clusters=n_cluster, **config["Spectral_kwargs"]).fit(X)
+                cluster_dfs[cluster_type]['cluster'] = mod.labels_
 
             joblib.dump(mod, join(output_path, f'{cluster_type}_{n_cluster}_clusters.mod'))
 
-            plot_cluster_dist(plot_data, output_path, cluster_type, n_cluster)
-            plot_storm_clusters(patch_data_path, output_path, plot_data, cluster_type, seed, **config['plot_kwargs'])
+            plot_cluster_dist(cluster_dfs[cluster_type], output_path, cluster_type, n_cluster)
+            plot_storm_clusters(patch_data_path, output_path, cluster_dfs[cluster_type],
+                                cluster_type, seed, **config['plot_kwargs'])
 
     return
 
