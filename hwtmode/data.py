@@ -154,3 +154,33 @@ def storm_max_value(output_data: xr.DataArray, masks: xr.DataArray) -> np.ndarra
     """
     max_values = (output_data * masks).max(axis=-1).max(axis=-1).values
     return max_values
+
+
+
+def predict_labels(neuron_acts, neuron_columns, gmm_model, cluster_dict):
+    """
+    Given neuron activations, feed to GMM to produce labels and probabilities.
+    Args:
+        neuron_acts: Pandas dataframe of neuron activations (including meta data)
+        neuron_columns: list of columns containing the activations
+        gmm_model: Trained Gaussian Mixture Model object
+        cluster_dict: Dictionary mapping cluster numbers to storm mode
+
+    Returns:
+        Pandas DataFrame of predictions and probabilities (including meta data)
+    """
+
+    prob_labels = [f'cluster_{x}_prob' for x in range(gmm_model.n_components)]
+    neuron_acts['label'] = -9999
+    neuron_acts['cluster'] = gmm_model.predict(neuron_acts.loc[:, neuron_columns])
+    neuron_acts[prob_labels] = gmm_model.predict_proba(
+        neuron_acts.loc[:, neuron_acts.columns.str.contains('neuron_')])
+
+    for key in cluster_dict.keys():
+        neuron_acts.loc[neuron_acts['cluster'].isin(cluster_dict[key]), 'label'] = key
+        neuron_acts[f'{key}_prob'] = neuron_acts[[f'cluster_{x}_prob' for x in cluster_dict[key]]].sum(axis=1)
+        neuron_acts[key] = 0
+        neuron_acts.loc[neuron_acts['label'].isin([key]), key] = 1
+        labels_w_meta = neuron_acts.loc[:, neuron_acts.columns != neuron_columns]
+
+    return labels_w_meta
