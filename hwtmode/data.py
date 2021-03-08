@@ -181,6 +181,6 @@ def predict_labels(neuron_acts, neuron_columns, gmm_model, cluster_dict):
         neuron_acts[f'{key}_prob'] = neuron_acts[[f'cluster_{x}_prob' for x in cluster_dict[key]]].sum(axis=1)
         neuron_acts[key] = 0
         neuron_acts.loc[neuron_acts['label'].isin([key]), key] = 1
-        labels_w_meta = neuron_acts.loc[:, neuron_acts.columns != neuron_columns]
+        labels_w_meta = neuron_acts.loc[:, ~neuron_acts.columns.isin(neuron_columns)]
 
     return labels_w_meta
