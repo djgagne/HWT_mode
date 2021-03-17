@@ -10,7 +10,7 @@ before_install:
   - conda config --set channel_priority strict
 
 install:
-  - conda create -n test --yes -c conda-forge python=$PYTHON_VERSION pip numpy scipy matplotlib pandas xarray pyyaml netcdf4 scikit-learn seaborn cartopy tqdm memory_profiler
+  - conda create -n test --yes -c conda-forge python=$PYTHON_VERSION pip numpy scipy matplotlib pandas xarray pyyaml netcdf4 scikit-learn seaborn cartopy tqdm memory_profiler scikit-image
   - source activate test
   - pip install tensorflow==$TENSORFLOW_VERSION
   - pip install tensorflow-probability
