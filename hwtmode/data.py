@@ -4,7 +4,8 @@ from os.path import exists, join
 from glob import glob
 from tqdm import tqdm
 import pandas as pd
-
+from skimage import measure
+from shapely.geometry import Polygon
 
 def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_variables: list,
                      output_variables: list, meta_variables: list,
@@ -156,7 +157,6 @@ def storm_max_value(output_data: xr.DataArray, masks: xr.DataArray) -> np.ndarra
     return max_values
 
 
-
 def predict_labels(neuron_acts, neuron_columns, gmm_model, cluster_dict):
     """
     Given neuron activations, feed to GMM to produce labels and probabilities.
@@ -183,4 +183,97 @@ def predict_labels(neuron_acts, neuron_columns, gmm_model, cluster_dict):
         neuron_acts.loc[neuron_acts['label'].isin([key]), key] = 1
         labels_w_meta = neuron_acts.loc[:, ~neuron_acts.columns.isin(neuron_columns)]
 
+    labels_w_meta.loc[:, 'label_int'] = labels_w_meta['label'].factorize()[0]
+    labels_w_meta.loc[:, 'label_prob'] = labels_w_meta[['Supercell_prob', 'QLCS_prob', 'Disorganized_prob']].max(axis=1)
+
+
     return labels_w_meta
+
+
+def lon_to_web_mercator(lon):
+    """
+    Transform longitudes to web_mercator projection in meters
+    Args:
+        lon: longitude
+
+    Returns:
+        web_mercator transformation in meters
+    """
+    k = 6378137
+    return lon * (k * np.pi / 180.0)
+
+
+def lat_to_web_mercator(lat):
+    """
+        Transform latitudes to web_mercator projection in meters
+        Args:
+            lat: latitude
+
+        Returns:
+            web_mercator transformation in meters
+        """
+    k = 6378137
+    return np.log(np.tan((90 + lat) * np.pi / 360.0)) * k
+
+
+def get_xy_coords(storms):
+    """
+    Takes Polygons of storm masks as paired coordinates and returns seperated x and y coordinates
+    Args:
+        storms: List of polygon storms [x, y]
+
+    Returns:
+        x: list of x coordinates
+        y: list of y coordinates
+    """
+    x, y = [], []
+    [(x.append(list(polygon.exterior.coords.xy[0])), y.append(list(polygon.exterior.coords.xy[1]))) for polygon in
+     storms]
+
+    return x, y
+
+
+def get_contours(data):
+    """
+    Takes storm masks (netCDF) and generates storm outlines in lat-lon coordinates
+    Args:
+        data: netCDF file of storm masks with meta data
+
+    Returns:
+
+    """
+
+    masks = data["masks"].values.astype(np.float32)
+    lons = data.variables["lon"].values.astype(np.float32)
+    lats = data.variables["lat"].values.astype(np.float32)
+
+    storms = []
+    skips = []
+    for i, mask in enumerate(masks):
+        contours = measure.find_contours(mask, 0.7)[0]
+        lons_m = []
+        lats_m = []
+        for contour in np.round(contours).astype(np.int32):
+            row = contour[0]
+            col = contour[1]
+            lons_m.append(lon_to_web_mercator(lons[i][row, col]))
+            lats_m.append(lat_to_web_mercator(lats[i][row, col]))
+        try:
+            storms.append(Polygon(list(zip(lons_m, lats_m))))
+        except:
+            print(f"Storm {i} doesn't have enough points {list(zip(lons_m, lats_m))} to create Polygon")
+            skips.append(i)
+
+    x, y = get_xy_coords(storms)
+
+    data = data.to_dataframe()
+    data = data.reset_index(level=[0, 1, 2]).drop_duplicates(subset='p', keep='first')
+    data = data.drop(['p', 'i', 'j', 'col', 'masks', 'row', 'lat', 'lon'], axis=1).reset_index(drop=True)
+    data = data.drop(skips)
+    data["x"] = x
+    data["y"] = y
+
+    return data
+
+
+
