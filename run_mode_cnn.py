@@ -5,7 +5,8 @@ from os import makedirs
 import pandas as pd
 import numpy as np
 import joblib
-from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, get_meta_scalars, predict_labels
+from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, get_meta_scalars, predict_labels, \
+    get_contours
 from hwtmode.models import load_conv_net
 from hwtmode.analysis import plot_storm_mode_analysis_map
 
@@ -58,7 +59,11 @@ def main():
         cluster_assignments = joblib.load(join(config["out_path"], f'{model_name}_gmm_labels.dict'))
         labels[model_name] = predict_labels(neuron_activations[model_name], neuron_columns, gmms[model_name],
                                             cluster_assignments)
-        labels[model_name].to_csv(join(config["labels_path"], f'{model_name}_predictions.csv'), index=False)
+        geometry_df = get_contours(meta)
+        labels[model_name] = pd.merge(labels[model_name], geometry_df)
+        labels[model_name].insert(1, 'forecast_hour', ((labels[model_name]['time'] - labels[model_name]['run_date']) /
+                                                       pd.Timedelta(hours=1)).astype('int32'))
+        labels[model_name].to_pickle(join(config["labels_path"], f'{model_name}_predictions.pkl'))
 
         if args.plot_activation:
             run_dates = pd.DatetimeIndex(neuron_activations[model_name]["run_date"].unique())
