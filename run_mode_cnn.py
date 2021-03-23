@@ -69,7 +69,7 @@ def main():
                                                     pd.Timedelta(hours=1)).astype('int32'))
             elif model_type == 'supervised':
 
-               labels = predict_labels_cnn(input_scaled, geometry_df, models[model_name])
+                labels = predict_labels_cnn(input_scaled, geometry_df, models[model_name])
 
             labels.to_pickle(join(config["labels_path"], f'{model_name}_labels.pkl'))
 
