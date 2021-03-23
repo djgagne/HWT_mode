@@ -157,7 +157,7 @@ def storm_max_value(output_data: xr.DataArray, masks: xr.DataArray) -> np.ndarra
     return max_values
 
 
-def predict_labels(neuron_acts, neuron_columns, gmm_model, cluster_dict):
+def predict_labels_gmm(neuron_acts, neuron_columns, gmm_model, cluster_dict):
     """
     Given neuron activations, feed to GMM to produce labels and probabilities.
     Args:
@@ -188,6 +188,30 @@ def predict_labels(neuron_acts, neuron_columns, gmm_model, cluster_dict):
 
 
     return labels_w_meta
+
+
+def predict_labels_cnn(input_data, geometry, model):
+    """
+    Generate labels and probabilities from CNN and add to labels
+    Args:
+        input_data: Scaled input data formatted for input into CNN
+        geometry: Dataframe of storm patch geometry (including meta data)
+        model: Convolutional Neural Network (CNN) Model
+    Returns:
+        Dataframe with appended new CNN labels
+    """
+    df = geometry.copy()
+    preds = model.predict(input_data)
+    df['label'] = -9999
+    df['label_int'] = preds.argmax(axis=1)
+    df['label_prob'] = preds.max(axis=1)
+    for i, label in enumerate(['Supercell', 'QLCS', 'Disorganized']):
+        df[label] = 0
+        df[f'{label}_prob'] = preds[:, i]
+        df.loc[df['label_int'] == i, 'label'] = label
+        df.loc[df['label_int'] == i, label] = 1
+
+    return df
 
 
 def lon_to_web_mercator(lon):
