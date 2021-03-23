@@ -1,24 +1,22 @@
 data_path: "/glade/scratch/cbecker/NSC_objects/HRRR_AWS_test_May_2020/track_data_hrrr_3km_nc_refl/"
-patch_radius: 32
-input_variables: ["REFC-entire_atmosphere_curr"]
-output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
 meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
-run_start_date: "2020-05-01"
-run_end_date: "2020-05-04"
+run_start_date: "2020-05-22"
+run_end_date: "2020-05-23"
 date_format: "%Y%m%d%H"
 start_hour: 01
 end_hour: 18
-out_path: "/glade/scratch/cbecker/HWT_out/refl_uh_class_021321/"
+out_path: "/glade/scratch/cbecker/HWT_rt_mods/"
 activation_path: "/glade/scratch/cbecker/HWT_run_test_output_2/activations/"
-labels_path: "/glade/scratch/cbecker/HWT_run_test_output_2/labels/"
+labels_path: "/glade/scratch/cbecker/HWT_run_test_output_2/labels_test_w_geom/"
 models:
-  mod_0:
-    neuron_002:
-      cmap: "Blues"
-      vmin: 0.0
-      vmax: 1.6
-    neuron_004:
-      cmap: "Reds"
-      vmin: 0.0
-      vmax: 1.6
+  semi_supervised:
+    mod_0:
+      patch_radius: 32
+      input_variables: ["REFC-entire_atmosphere_curr"]
+      output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
+  supervised:
+    cnn_test_000:
+      patch_radius: 32
+      input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
+      output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
