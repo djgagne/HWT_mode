@@ -185,12 +185,14 @@ def predict_labels_gmm(neuron_acts, neuron_columns, gmm_model, cluster_dict):
 
     labels_w_meta.loc[:, 'label_int'] = labels_w_meta['label'].factorize()[0]
     labels_w_meta.loc[:, 'label_prob'] = labels_w_meta[['Supercell_prob', 'QLCS_prob', 'Disorganized_prob']].max(axis=1)
+    labels_w_meta.insert(1, 'forecast_hour', ((labels_w_meta['time'] - labels_w_meta['run_date']) /
+                                              pd.Timedelta(hours=1)).astype('int32'))
 
 
     return labels_w_meta
 
 
-def predict_labels_cnn(input_data, geometry, model):
+def predict_labels_cnn(input_data, meta_df, model):
     """
     Generate labels and probabilities from CNN and add to labels
     Args:
@@ -200,7 +202,7 @@ def predict_labels_cnn(input_data, geometry, model):
     Returns:
         Dataframe with appended new CNN labels
     """
-    df = geometry.copy()
+    df = meta_df.copy()
     preds = model.predict(input_data)
     df['label'] = -9999
     df['label_int'] = preds.argmax(axis=1)
@@ -211,6 +213,7 @@ def predict_labels_cnn(input_data, geometry, model):
         df.loc[df['label_int'] == i, 'label'] = label
         df.loc[df['label_int'] == i, label] = 1
 
+    df.insert(1, 'forecast_hour', ((df['time'] - df['run_date']) / pd.Timedelta(hours=1)).astype('int32'))
     return df
 
 
@@ -274,7 +277,7 @@ def get_contours(data):
     storms = []
     skips = []
     for i, mask in enumerate(masks):
-        contours = measure.find_contours(mask, 0.7)[0]
+        contours = measure.find_contours(mask)[0]
         lons_m = []
         lats_m = []
         for contour in np.round(contours).astype(np.int32):
@@ -287,7 +290,7 @@ def get_contours(data):
         except:
             print(f"Storm {i} doesn't have enough points {list(zip(lons_m, lats_m))} to create Polygon")
             skips.append(i)
-
+    print('Generating mask outlines...')
     x, y = get_xy_coords(storms)
 
     data = data.to_dataframe()

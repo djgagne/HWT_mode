@@ -3,12 +3,10 @@ import yaml
 from os.path import exists, join
 from os import makedirs
 import pandas as pd
-import numpy as np
 import joblib
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, get_meta_scalars, predict_labels_gmm, \
     predict_labels_cnn, get_contours
 from hwtmode.models import load_conv_net
-from hwtmode.analysis import plot_storm_mode_analysis_map
 
 
 def main():
@@ -29,9 +27,10 @@ def main():
     for model_type, model_dict in config["models"].items():
         for model_name in model_dict.keys():
 
-            print(model_name, f'({model_type})')
+
             scale_values = pd.read_csv(join(config["out_path"], model_name, f"scale_values_{model_name}.csv"),
                                        index_col="variable")
+            print('Loading storm patches...')
             input_data, output, meta = load_patch_files(config["run_start_date"],
                                                         config["run_end_date"],
                                                         config["data_path"],
@@ -41,13 +40,12 @@ def main():
                                                         model_dict[model_name]["patch_radius"])
             input_combined = combine_patch_data(input_data, model_dict[model_name]["input_variables"])
             input_scaled, scale_values = min_max_scale(input_combined, scale_values)
+            print("Input shape:", input_scaled.shape)
             meta_df = get_meta_scalars(meta)
             geometry_df = get_contours(meta)
-
-            print("Input shape", input_scaled.shape)
-
             model_out_path = join(config["out_path"], model_name)
             models[model_name] = load_conv_net(model_out_path, model_name)
+            print(model_name, f'({model_type})')
             print(models[model_name].model_.summary())
 
             if model_type == 'semi_supervised':
@@ -65,13 +63,14 @@ def main():
                 labels = predict_labels_gmm(neuron_activations[model_name], neuron_columns, gmms[model_name],
                                         cluster_assignments)
                 labels = pd.merge(labels, geometry_df)
-                labels.insert(1, 'forecast_hour', ((labels['time'] - labels['run_date']) /
-                                                    pd.Timedelta(hours=1)).astype('int32'))
+
             elif model_type == 'supervised':
 
-                labels = predict_labels_cnn(input_scaled, geometry_df, models[model_name])
+                labels = predict_labels_cnn(input_scaled, meta_df, models[model_name])
+                labels = pd.merge(labels, geometry_df)
 
             labels.to_pickle(join(config["labels_path"], f'{model_name}_labels.pkl'))
+            print('Wrote', join(config["labels_path"], f'{model_name}_labels.pkl'))
 
     print("Completed.")
 
