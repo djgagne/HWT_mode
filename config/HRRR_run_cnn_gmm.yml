@@ -1,12 +1,11 @@
-data_path: "/glade/scratch/cbecker/NSC_objects/HRRR_AWS_test_May_2020/track_data_hrrr_3km_nc_refl/"
+data_path: "/glade/scratch/cbecker/HRRR_objects/HRRR_AWS_realtime_033120/track_data_hrrr_3km_nc_refl/"
 meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
-run_start_date: "2020-05-10"
-run_end_date: "2020-05-12"
-date_format: "%Y%m%d%H"
+run_start_date: "today"
+run_end_date: "today"
 out_path: "/glade/scratch/cbecker/HWT_rt_mods/"
-activation_path: "/glade/scratch/cbecker/HWT_run_test_output_May2020/activations/"
-labels_path: "/glade/scratch/cbecker/HWT_run_test_output_May2020/labels_test_w_geom/"
+activation_path: "/glade/scratch/cbecker/HWT_realtime_test/activations/"
+labels_path: "/glade/scratch/cbecker/HWT_realtime_test/labels/"
 models:
   semi_supervised:
     mod_0:

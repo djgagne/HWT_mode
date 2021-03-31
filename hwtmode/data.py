@@ -32,8 +32,14 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
     patch_files = pd.Series(sorted(glob(join(patch_dir, "*.nc"))))
     date_strings = patch_files.str.split("/").str[-1].str.split("_").str[1]
     patch_dates = pd.to_datetime(date_strings)
-    start_date_stamp = pd.Timestamp(pd.Timestamp(start_date).strftime("%Y-%m-%d 00:00:00"))
-    end_date_stamp = pd.Timestamp(pd.Timestamp(end_date).strftime("%Y-%m-%d 00:00:00"))
+    if start_date == "today":
+        start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d %H:00:00")
+                                        ) - pd.Timedelta(hours=3)
+        end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d %H:00:00")
+                                      ) - pd.Timedelta(hours=3)
+    else:
+        start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d %H:00:00"))
+        end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d %H:00:00"))
     date_filter = (patch_dates >= start_date_stamp) & (patch_dates <= end_date_stamp)
     valid_patch_files = patch_files[date_filter]
     valid_patch_dates = patch_dates[date_filter]

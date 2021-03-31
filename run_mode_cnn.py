@@ -23,10 +23,10 @@ def main():
         if not exists(path):
             makedirs(path)
     models, gmms, neuron_activations = {}, {}, {}
-
+    start_str = (pd.Timestamp(config["run_start_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_%H00")
+    end_str = (pd.Timestamp(config["run_end_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_%H00")
     for model_type, model_dict in config["models"].items():
         for model_name in model_dict.keys():
-
 
             scale_values = pd.read_csv(join(config["out_path"], model_name, f"scale_values_{model_name}.csv"),
                                        index_col="variable")
@@ -38,6 +38,7 @@ def main():
                                                         model_dict[model_name]["output_variables"],
                                                         config["meta_variables"],
                                                         model_dict[model_name]["patch_radius"])
+
             input_combined = combine_patch_data(input_data, model_dict[model_name]["input_variables"])
             input_scaled, scale_values = min_max_scale(input_combined, scale_values)
             print("Input shape:", input_scaled.shape)
@@ -55,8 +56,12 @@ def main():
                                                           index=meta_df.index), left_index=True, right_index=True)
                 neuron_activations[model_name].loc[:, neuron_columns] = \
                     models[model_name].output_hidden_layer(input_scaled.values)
-                neuron_activations[model_name].to_csv(join(config["activation_path"], f'{model_name}_activations.csv'),
-                                                      index=False)
+                if start_str != end_str:
+                    neuron_activations[model_name].to_csv(join(config["activation_path"],
+                                                    f'{model_name}_activations_{start_str}_{end_str}.csv'), index=False)
+                else:
+                    neuron_activations[model_name].to_csv(join(config["activation_path"],
+                                                               f'{model_name}_activations_{start_str}.csv'), index=False)
 
                 gmms[model_name] = joblib.load(join(config["out_path"], model_name, f'{model_name}.gmm'))
                 cluster_assignments = joblib.load(join(config["out_path"], model_name, f'{model_name}_gmm_labels.dict'))
@@ -69,8 +74,12 @@ def main():
                 labels = predict_labels_cnn(input_scaled, meta_df, models[model_name])
                 labels = pd.merge(labels, geometry_df)
 
-            labels.to_pickle(join(config["labels_path"], f'{model_name}_labels.pkl'))
-            print('Wrote', join(config["labels_path"], f'{model_name}_labels.pkl'))
+            if start_str != end_str:
+                labels.to_pickle(join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.pkl'))
+                print('Wrote', join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.pkl'))
+            else:
+                labels.to_pickle(join(config["labels_path"], f'{model_name}_labels_{start_str}.pkl'))
+                print('Wrote', join(config["labels_path"], f'{model_name}_labels_{start_str}.pkl'))
 
     print("Completed.")
 
