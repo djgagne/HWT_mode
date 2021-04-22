@@ -3,6 +3,7 @@ meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centr
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 run_start_date: "today"
 run_end_date: "today"
+run_freq: "daily"
 out_path: "/glade/scratch/cbecker/HWT_rt_mods/"
 activation_path: "/glade/scratch/cbecker/HWT_realtime_test/activations/"
 labels_path: "/glade/scratch/cbecker/HWT_realtime_test/labels/"

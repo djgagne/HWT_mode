@@ -23,16 +23,23 @@ def main():
         if not exists(path):
             makedirs(path)
     models, gmms, neuron_activations = {}, {}, {}
-    start_str = (pd.Timestamp(config["run_start_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_%H00")
-    end_str = (pd.Timestamp(config["run_end_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_%H00")
+    if config['run_freq'] == 'hourly':
+        start_str = (pd.Timestamp(config["run_start_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_%H00")
+        end_str = (pd.Timestamp(config["run_end_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime
+    elif config['run_freq'] == 'daily':
+        start_str = (pd.Timestamp(config["run_start_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_0000")
+        end_str = (pd.Timestamp(config["run_end_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_0000")
     for model_type, model_dict in config["models"].items():
         for model_name in model_dict.keys():
 
-            scale_values = pd.read_csv(join(config["out_path"], model_name, f"scale_values_{model_name}.csv"),
-                                       index_col="variable")
+            scale_values = pd.read_csv(join(config["out_path"], model_name, f"scale_values_{model_name}.csv"))
+            scale_values['variable'] = model_dict[model_name]['input_variables']
+            scale_values = scale_values.set_index('variable')
+
             print('Loading storm patches...')
             input_data, output, meta = load_patch_files(config["run_start_date"],
                                                         config["run_end_date"],
+                                                        config["run_freq"],
                                                         config["data_path"],
                                                         model_dict[model_name]["input_variables"],
                                                         model_dict[model_name]["output_variables"],
@@ -40,6 +47,7 @@ def main():
                                                         model_dict[model_name]["patch_radius"])
 
             input_combined = combine_patch_data(input_data, model_dict[model_name]["input_variables"])
+            print('COMBINED VARNAMES: ', input_combined['var_name'])
             input_scaled, scale_values = min_max_scale(input_combined, scale_values)
             print("Input shape:", input_scaled.shape)
             meta_df = get_meta_scalars(meta)

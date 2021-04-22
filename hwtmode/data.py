@@ -7,7 +7,7 @@ import pandas as pd
 from skimage import measure
 from shapely.geometry import Polygon
 
-def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_variables: list,
+def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: str, input_variables: list,
                      output_variables: list, meta_variables: list,
                      patch_radius=None, mask=False) -> tuple:
     """
@@ -17,6 +17,7 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
     Args:
         start_date (str): Beginning of date range for file loading.
         end_date (str): End of data range for file loading.
+        run_freq (str): Frequency at which to grab files
         patch_dir (str): Path to directory containing patch netCDF files.
         input_variables (list): List of input variable names.
         output_variables (list): List of output variable names.
@@ -33,10 +34,15 @@ def load_patch_files(start_date: str, end_date: str, patch_dir: str, input_varia
     date_strings = patch_files.str.split("/").str[-1].str.split("_").str[1]
     patch_dates = pd.to_datetime(date_strings)
     if start_date == "today":
-        start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d %H:00:00")
-                                        ) - pd.Timedelta(hours=3)
-        end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d %H:00:00")
-                                      ) - pd.Timedelta(hours=3)
+        if run_freq == "hourly":
+            start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d %H:00:00")
+                                            ) - pd.Timedelta(hours=3)
+            end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d %H:00:00")
+                                          ) - pd.Timedelta(hours=3)
+        elif run_freq == 'daily':
+            start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d 00:00:00"))
+            end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d 00:00:00"))
+
     else:
         start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d %H:00:00"))
         end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d %H:00:00"))
