@@ -312,7 +312,7 @@ def get_contours(data):
     data["x"] = x
     data["y"] = y
 
-    return data
+    return data, skips
 
 
 

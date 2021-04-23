@@ -27,8 +27,8 @@ def main():
         start_str = (pd.Timestamp(config["run_start_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_%H00")
         end_str = (pd.Timestamp(config["run_end_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_%H00")
     elif config['run_freq'] == 'daily':
-        start_str = (pd.Timestamp(config["run_start_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_0000")
-        end_str = (pd.Timestamp(config["run_end_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d_0000")
+        start_str = (pd.Timestamp(config["run_start_date"], tz="UTC")).strftime("%Y%m%d-0000")
+        end_str = (pd.Timestamp(config["run_end_date"], tz="UTC")).strftime("%Y%m%d-0000")
     for model_type, model_dict in config["models"].items():
         for model_name in model_dict.keys():
 
@@ -51,7 +51,7 @@ def main():
             input_scaled, scale_values = min_max_scale(input_combined, scale_values)
             print("Input shape:", input_scaled.shape)
             meta_df = get_meta_scalars(meta)
-            geometry_df = get_contours(meta)
+            geometry_df, skips = get_contours(meta)
             model_out_path = join(config["out_path"], model_name)
             models[model_name] = load_conv_net(model_out_path, model_name)
             print(model_name, f'({model_type})')
@@ -82,6 +82,9 @@ def main():
                 labels = predict_labels_cnn(input_scaled, meta_df, models[model_name])
                 labels = pd.merge(labels, geometry_df)
 
+            agg_storm_data = pd.read_csv(join(config['data_path'].replace('nc', 'csv'),
+                                              f'track_step_NCARSTORM_d01_{start_str}.csv'))
+            labels['MAX_UPHL'] = pd.merge(labels, agg_storm_data.drop(skips), on=labels.index)[config["agg_variables"]]
             if start_str != end_str:
                 labels.to_pickle(join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.pkl'))
                 print('Wrote', join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.pkl'))
