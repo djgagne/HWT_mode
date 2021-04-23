@@ -83,7 +83,7 @@ def main():
                 labels = pd.merge(labels, geometry_df)
 
             agg_storm_data = pd.read_csv(join(config['data_path'].replace('nc', 'csv'),
-                                              f'track_step_NCARSTORM_d01_{start_str}.csv'))
+                                              f'{config["csv_model_prefix"]}{start_str}.csv'))
             labels['MAX_UPHL'] = pd.merge(labels, agg_storm_data.drop(skips), on=labels.index)[config["agg_variables"]]
             if start_str != end_str:
                 labels.to_pickle(join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.pkl'))

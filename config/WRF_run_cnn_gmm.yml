@@ -1,4 +1,5 @@
 data_path: "/glade/scratch/cbecker/WRF_objects/WRF_test/track_data_wrf_3km_nc_refl/"
+csv_model_prefix: "track_step_NCARSTORM_d01_"
 meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 agg_variables: ["UP_HELI_MAX_max"]

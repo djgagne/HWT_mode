@@ -1,4 +1,5 @@
 data_path: "/glade/scratch/cbecker/HRRR_objects/HRRR_AWS_realtime_033120/track_data_hrrr_3km_nc_refl/"
+csv_model_prefix: "track_step_HRRR-ZARR_oper_"
 meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 agg_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max"]
