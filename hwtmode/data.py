@@ -287,23 +287,29 @@ def get_contours(data):
     lats = data.variables["lat"].values.astype(np.float32)
 
     storms = []
+    storms_lcc = []
     skips = []
     for i, mask in enumerate(masks):
         contours = measure.find_contours(mask)[0]
         lons_m = []
         lats_m = []
+        lats_list, lons_list = [], []
         for contour in np.round(contours).astype(np.int32):
             row = contour[0]
             col = contour[1]
             lons_m.append(lon_to_web_mercator(lons[i][row, col]))
             lats_m.append(lat_to_web_mercator(lats[i][row, col]))
+            lons_list.append(lons[i][row, col])
+            lats_list.append(lats[i][row, col])
         try:
             storms.append(Polygon(list(zip(lons_m, lats_m))))
+            storms_lcc.append(Polygon(list(zip(lons_list, lats_list))))
         except:
             print(f"Storm {i} doesn't have enough points {list(zip(lons_m, lats_m))} to create Polygon")
             skips.append(i)
     print('Generating mask outlines...')
     x, y = get_xy_coords(storms)
+    lat, lon = get_xy_coords(storms_lcc)
 
     data = data.to_dataframe()
     data = data.reset_index(level=[0, 1, 2]).drop_duplicates(subset='p', keep='first')
@@ -311,6 +317,8 @@ def get_contours(data):
     data = data.drop(skips)
     data["x"] = x
     data["y"] = y
+    data['lat'] = lat
+    data['lon'] = lon
 
     return data, skips
 
