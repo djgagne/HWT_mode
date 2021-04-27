@@ -219,7 +219,7 @@ def predict_labels_cnn(input_data, meta_df, model):
     df['label'] = -9999
     df['label_int'] = preds.argmax(axis=1)
     df['label_prob'] = preds.max(axis=1)
-    for i, label in enumerate(['Supercell', 'QLCS', 'Disorganized']):
+    for i, label in enumerate(['QLCS', 'Supercell', 'Disorganized']):
         df[label] = 0
         df[f'{label}_prob'] = preds[:, i]
         df.loc[df['label_int'] == i, 'label'] = label
