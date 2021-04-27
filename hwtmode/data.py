@@ -309,7 +309,7 @@ def get_contours(data):
             skips.append(i)
     print('Generating mask outlines...')
     x, y = get_xy_coords(storms)
-    lat, lon = get_xy_coords(storms_lcc)
+    lon, lat = get_xy_coords(storms_lcc)
 
     data = data.to_dataframe()
     data = data.reset_index(level=[0, 1, 2]).drop_duplicates(subset='p', keep='first')
