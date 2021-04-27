@@ -290,7 +290,7 @@ def get_contours(data):
     storms_lcc = []
     skips = []
     for i, mask in enumerate(masks):
-        contours = measure.find_contours(mask)[0]
+        contours = measure.find_contours(mask, 0.01)[0]
         lons_m = []
         lats_m = []
         lats_list, lons_list = [], []
