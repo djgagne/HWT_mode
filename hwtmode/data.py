@@ -109,32 +109,6 @@ def combine_patch_data(patch_data, variables):
     return combined.transpose("p", "row", "col", "var_name")
 
 
-def min_max_scale(patch_data, scale_values=None):
-    """
-    Rescale the each variable in the combined DataArray to range from 0 to 1.
-
-    Args:
-        patch_data: Input data arranged in (p, rol, col, var_name) dimensions
-        scale_values: pandas.DataFrame containing min and max values for each variable.
-
-    Returns:
-        transformed: patch_data rescaled from 0 to 1
-    """
-    fit = False
-    if scale_values is None:
-        scale_values = pd.DataFrame(0, index=patch_data["var_name"].values, columns=["min", "max"])
-        fit = True
-    transformed = patch_data.copy(deep=True)
-    for v, var_name in enumerate(patch_data["var_name"].values):
-        print(var_name)
-        if fit:
-            scale_values.loc[var_name, "min"] = patch_data[..., v].min().values[()]
-            scale_values.loc[var_name, "max"] = patch_data[..., v].max().values[()]
-        transformed[..., v] = (patch_data[..., v] - scale_values.loc[var_name, "min"]) \
-            / (scale_values.loc[var_name, "max"] - scale_values.loc[var_name, "min"])
-    return transformed, scale_values
-
-
 def min_max_inverse_scale(transformed_data, scale_values):
     """
     Inverse scale data that ranges from 0 to 1 to the original values.
@@ -169,7 +143,7 @@ def storm_max_value(output_data: xr.DataArray, masks: xr.DataArray) -> np.ndarra
     return max_values
 
 
-def predict_labels_gmm(neuron_acts, neuron_columns, gmm_model, cluster_dict):
+def predict_labels_gmm(neuron_acts, neuron_columns, gmm_model, cluster_dict, objects=True):
     """
     Given neuron activations, feed to GMM to produce labels and probabilities.
     Args:
@@ -197,14 +171,15 @@ def predict_labels_gmm(neuron_acts, neuron_columns, gmm_model, cluster_dict):
 
     labels_w_meta.loc[:, 'label_int'] = labels_w_meta['label'].factorize()[0]
     labels_w_meta.loc[:, 'label_prob'] = labels_w_meta[['Supercell_prob', 'QLCS_prob', 'Disorganized_prob']].max(axis=1)
-    labels_w_meta.insert(1, 'forecast_hour', ((labels_w_meta['time'] - labels_w_meta['run_date']) /
-                                              pd.Timedelta(hours=1)).astype('int32'))
+    if objects:
+        labels_w_meta.insert(1, 'forecast_hour', ((labels_w_meta['time'] - labels_w_meta['run_date']) /
+                                                  pd.Timedelta(hours=1)).astype('int32'))
 
 
     return labels_w_meta
 
 
-def predict_labels_cnn(input_data, meta_df, model):
+def predict_labels_cnn(input_data, meta_df, model, objects=True):
     """
     Generate labels and probabilities from CNN and add to labels
     Args:
@@ -224,8 +199,8 @@ def predict_labels_cnn(input_data, meta_df, model):
         df[f'{label}_prob'] = preds[:, i]
         df.loc[df['label_int'] == i, 'label'] = label
         df.loc[df['label_int'] == i, label] = 1
-
-    df.insert(1, 'forecast_hour', ((df['time'] - df['run_date']) / pd.Timedelta(hours=1)).astype('int32'))
+    if objects:
+        df.insert(1, 'forecast_hour', ((df['time'] - df['run_date']) / pd.Timedelta(hours=1)).astype('int32'))
     return df
 
 
@@ -323,4 +298,127 @@ def get_contours(data):
     return data, skips
 
 
+def load_wrf_patches(start_date, end_date, output_dir, input_vars, output_vars, meta_vars, patch_radius):
+    dates = pd.date_range(start_date, end_date)
+    patch_size = patch_radius * 2 + 1
+    all_files = []
+    for date in dates:
+        date = date.strftime('%Y%m%d00')
+        file_list = sorted(glob(join(output_dir, date, 'wrf_rundir', 'ens_1', 'diags*')))
+        all_files.append(file_list)
+    all_files = [i for sub in all_files for i in sub]
+    p_list = []
+    for file in all_files:
+        d = xr.open_dataset(file)
+        ns, we, = d['south_north'].size, d['west_east'].size
+        for i in np.arange(0, ns - patch_size, patch_size):
+            for j in np.arange(0, we - patch_size, patch_size):
+                p = d[meta_vars + input_vars + output_vars].isel(south_north=slice(i, i + patch_size),
+                                                                 west_east=slice(j, j + patch_size)).squeeze()
+                if p['REFL_COM'].values.max() > 35:
+                    p_list.append(p)
+    ds = xr.concat(p_list, dim='p').rename_dims({'south_north': 'row', 'west_east': 'col'})
+    input_data = ds[input_vars]
+    output_data = ds[output_vars]
+    meta = ds[meta_vars]
+    return input_data, output_data, meta
 
+
+def get_gmm_predictions(patch, cnn_mod, model_path, model_name):
+    """
+    Generate predictions from semi-supervised CNN/GMM model pipeline.
+    Args:
+        patch: Patch to be fed into CNN model for neuron activations
+        cnn_mod: CNN model object
+        model_path: Base path for models
+        mdoel_name: Model name
+    Returns:
+        List of GMM probabilities for patch
+    """
+    gmm_mod = joblib.load(join(model_path, model_name, f'{model_name}.gmm'))
+    cluster_assignments = joblib.load(join(model_path, model_name, f'{model_name}_gmm_labels.dict'))
+    neuron_activations = cnn_mod.output_hidden_layer(patch)
+    preds = gmm_mod.predict_proba(neuron_activations)
+    pred_list = []
+    for mode_type in ['QLCS', 'Supercell', 'Disorganized']:
+        mode_prediction = preds[0][cluster_assignments[mode_type]].sum()
+        pred_list.append(mode_prediction)
+    return [pred_list]
+
+
+def transform_wrf_data(patch_data, variables):
+    """
+    Combines separate DataArrays from a Dataset into one combined and scaled DataArray for input to deep learning.
+
+    Args:
+        patch_data: :class:`xarray.Dataset` being combined.
+        variables: List of variable names.
+
+    Returns:
+         combined: xarray.DataArray with dimensions (p, row, col, var_name)
+    """
+    combined = xr.concat([patch_data[variable] for variable in variables],
+                         pd.Index(variables, name="var_name")).transpose("Time", "south_north", "west_east", "var_name")
+    scaled_data, scale_v = min_max_scale(combined, scale_values)
+    return scaled_data
+
+
+def predict_wrf_patches(start_date, end_date, data_dir, model_path, model_name, scale_values, input_vars, output_vars,
+                        meta_vars, patch_radius, gmm=False):
+    """
+    Generate model probabilities across entire WRF Grid.
+    Args:
+        start_date: start date in format YYYYMMDD (or "today")
+        end_date: End date in format YYYYMMDD (or "today")
+        data_dir: Base directory for Raw WRF output.
+        model_path: Base path of model.
+        model_name: Name of model.
+        scale_values: CSV file of scale values (min/max) used for CNN training.
+        input_vars: Input variables.
+        output_vars: Output varialbes.
+        meta_vars: Meta variables to be kept.
+        patch_radius: Radius of patches CNN model was trained on.
+    Returns:
+        (List) Containing each model run.
+    """
+
+    mod = load_conv_net(join(model_path, model_name), model_name)
+    patch_size = patch_radius * 2 + 1
+    dates = pd.date_range(start_date, end_date)
+    mode_types = ['QLCS', 'Supercell', 'Disorganized']
+    daily_list = []
+    for date in dates:
+        date = date.strftime('%Y%m%d00')
+        ds = xr.open_mfdataset(join(output_dir, date, 'wrf_rundir', 'ens_1', 'diags*'), combine='nested',
+                               concat_dim='Time')
+        ds = ds[input_vars + output_vars + meta_vars].load()
+        for mode_type in mode_types:
+            ds[f'{mode_type}'] = ds[input_vars[0]] * 0
+            ds[f'{mode_type}_prob'] = ds[input_vars[0]] * 0
+        for time_i in range(len(ds['Time'])):
+            print(time_i)
+            ns, we, = ds['south_north'].size, ds['west_east'].size
+            for i in np.arange(0, ns - patch_size, patch_size):
+                for j in np.arange(0, we - patch_size, patch_size):
+                    y, x = slice(i, i + patch_size), slice(j, j + patch_size)
+                    p = ds.isel(Time=slice(time_i, time_i + 1), south_north=y, west_east=x)
+                    p_transformed = transform_wrf_data(p, input_vars)
+                    if p['REFL_COM'].values.max() > 35:
+                        if gmm:
+                            preds = get_gmm_predictions(p_transformed, mod, model_path, model_name)
+
+                        else:
+                            preds = mod.predict(p_transformed)
+                        ds['QLCS_prob'].loc[dict(Time=time_i, south_north=y, west_east=x)] = np.full(
+                            (patch_size, patch_size), preds[0][0])
+                        ds['Supercell_prob'].loc[dict(Time=time_i, south_north=y, west_east=x)] = np.full(
+                            (patch_size, patch_size), preds[0][1])
+                        ds['Disorganized_prob'].loc[dict(Time=time_i, south_north=y, west_east=x)] = np.full(
+                            (patch_size, patch_size), preds[0][2])
+        ds['QLCS'].values = np.where(ds['QLCS_prob'] > (1 / 3), 1, np.nan)
+        ds['Supercell'].values = np.where(ds['Supercell_prob'] > (1 / 3), 1, np.nan)
+        ds['Disorganized'].values = np.where(ds['Disorganized_prob'] > (1 / 3), 1, np.nan)
+        daily_list.append(ds)
+        del ds
+
+    return daily_list
