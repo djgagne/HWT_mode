@@ -109,6 +109,30 @@ def combine_patch_data(patch_data, variables):
     return combined.transpose("p", "row", "col", "var_name")
 
 
+def min_max_scale(patch_data, scale_values=None):
+    """
+    Rescale the each variable in the combined DataArray to range from 0 to 1.
+    Args:
+        patch_data: Input data arranged in (p, rol, col, var_name) dimensions
+        scale_values: pandas.DataFrame containing min and max values for each variable.
+    Returns:
+        transformed: patch_data rescaled from 0 to 1
+    """
+    fit = False
+    if scale_values is None:
+        scale_values = pd.DataFrame(0, index=patch_data["var_name"].values, columns=["min", "max"])
+        fit = True
+    transformed = patch_data.copy(deep=True)
+    for v, var_name in enumerate(patch_data["var_name"].values):
+        print(var_name)
+        if fit:
+            scale_values.loc[var_name, "min"] = patch_data[..., v].min().values[()]
+            scale_values.loc[var_name, "max"] = patch_data[..., v].max().values[()]
+        transformed[..., v] = (patch_data[..., v] - scale_values.loc[var_name, "min"]) \
+            / (scale_values.loc[var_name, "max"] - scale_values.loc[var_name, "min"])
+    return transformed, scale_values
+
+
 def min_max_inverse_scale(transformed_data, scale_values):
     """
     Inverse scale data that ranges from 0 to 1 to the original values.
