@@ -48,6 +48,7 @@ def main():
     for mode in modes:
         data_input[mode], output[mode], meta[mode] = load_patch_files(config[mode + "_start_date"],
                                                                  config[mode + "_end_date"],
+                                                                 run_freq=None,
                                                                  config["data_path"],
                                                                  config["input_variables"],
                                                                  config["output_variables"],
