@@ -13,7 +13,7 @@ install:
   - conda create -n test --yes -c conda-forge python=$PYTHON_VERSION pip numpy scipy matplotlib pandas xarray pyyaml netcdf4 scikit-learn seaborn cartopy tqdm memory_profiler scikit-image
   - source activate test
   - pip install tensorflow==$TENSORFLOW_VERSION
-  - pip install tensorflow-probability
+  - pip install tensorflow-probability==0.12.2
   - pip install pytest
   - pip install .
 script:
