@@ -13,7 +13,7 @@ import cartopy
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from scipy.ndimage.filters import gaussian_filter
-from evaluation import generate_storm_grid
+from .evaluation import generate_storm_grid
 sns.set_style("darkgrid")
 
 def corr_coef_metric(y_true, y_pred):
