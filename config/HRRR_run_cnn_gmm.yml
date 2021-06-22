@@ -1,0 +1,23 @@
+data_path: "/glade/scratch/cbecker/HRRR_objects/HRRR_AWS_realtime_033120/track_data_hrrr_3km_nc_refl/"
+csv_model_prefix: "track_step_HRRR-ZARR_oper_"
+meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
+                 "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
+agg_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max"]
+run_start_date: "today"
+run_end_date: "today"
+run_freq: "hourly"
+out_path: "/glade/scratch/cbecker/HWT_rt_mods/"
+activation_path: "/glade/scratch/cbecker/HWT_realtime_test/activations/"
+labels_path: "/glade/scratch/cbecker/HWT_realtime_test/labels/"
+output_format: "parquet"
+models:
+  semi_supervised:
+    mod_0:
+      patch_radius: 32
+      input_variables: ["REFC-entire_atmosphere_curr"]
+      output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
+  supervised:
+    cnn_test_000:
+      patch_radius: 32
+      input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
+      output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
