@@ -400,7 +400,7 @@ def plot_ensemble_neighborhood(beg, end, model_list, label_path, model_grid_path
                                      min_lead_time, max_lead_time, file_format)
     lcc = ccrs.LambertConformal(central_longitude=-97.5, standard_parallels=(38.5, 38.5))
     fig, axes = plt.subplots(2, 3, figsize=(30, 19.6), sharex=True, sharey=True, subplot_kw={'projection': lcc})
-    cmap = plt.cm.get_cmap("jet").copy()
+    cmap = plt.cm.get_cmap("turbo").copy()
     plt.subplots_adjust(wspace=0.05, hspace=-0.35)
     for i, ax in enumerate(axes.ravel()):
         data = gaussian_filter(storm_grid[list(storm_grid.data_vars)[i]], sigma=gaussian_filter_sigma)
@@ -411,8 +411,8 @@ def plot_ensemble_neighborhood(beg, end, model_list, label_path, model_grid_path
         ax.add_feature(cfeature.BORDERS)
         ax.add_feature(cfeature.LAKES, alpha=0.5)
         ax.add_feature(cfeature.STATES)
-        p = ax.contourf(storm_grid['lon'], storm_grid['lat'], data, levels=np.linspace(0, 1, 11), vmin=0.01, vmax=1,
-                        alpha=0.5, transform=ccrs.PlateCarree(), cmap=cmap, extend=None)
+        p = ax.contourf(storm_grid['lon'], storm_grid['lat'], data, levels=np.linspace(0.02, 1, 11), vmin=0, vmax=1,
+                        alpha=0.75, transform=ccrs.PlateCarree(), cmap=cmap, extend=None)
         plt.colorbar(p, ax=ax, shrink=0.45)
-        ax.set_title(list(storm_grid.data_vars)[i], fontsize=18, fontweight='bold')
+        ax.set_title(list(storm_grid.data_vars)[i].replace('_', ' '), fontsize=18, fontweight='bold')
     plt.savefig(join(out_path, f'neighborhood_prob_{beg}_{end}.png'), dpi=300, bbox_inches='tight')
