@@ -110,6 +110,8 @@ if df.empty:
 good_UH = 25
 igood_UH = (df['UP_HELI_MAX_max'] >= good_UH) | (df['UP_HELI_MIN_min'].abs() >= good_UH)
 print("ignoring",(~igood_UH).sum(),"object with UH <",good_UH)
+if debug:
+    print(df[~igood_UH][["Step_ID","UP_HELI_MAX_max","UP_HELI_MIN_min"]])
 df = df[igood_UH]
 if df.empty:
     print("csv track step file", tracks, " has no good UH objects at requested valid time",valid_time,". That is probably fine.")
