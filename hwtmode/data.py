@@ -6,6 +6,11 @@ from tqdm import tqdm
 import pandas as pd
 from skimage import measure
 from shapely.geometry import Polygon
+import joblib
+import s3fs
+from hwtmode.models import load_conv_net
+
+
 
 def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: str, input_variables: list,
                      output_variables: list, meta_variables: list,
@@ -50,7 +55,7 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
     valid_patch_files = patch_files[date_filter]
     valid_patch_dates = patch_dates[date_filter]
     if len(valid_patch_files) == 0:
-        raise FileNotFoundError("No patch files found in " + patch_dir)
+        raise FileNotFoundError("No patch files found in " + patch_1dir)
     input_data_list = []
     output_data_list = []
     meta_data_list = []
@@ -107,6 +112,8 @@ def combine_patch_data(patch_data, variables):
     combined = xr.concat([patch_data[variable] for variable in variables],
                          pd.Index(variables, name="var_name"))
     return combined.transpose("p", "row", "col", "var_name")
+
+
 
 
 def min_max_scale(patch_data, scale_values=None):
@@ -370,79 +377,141 @@ def get_gmm_predictions(patch, cnn_mod, model_path, model_name):
     return [pred_list]
 
 
-def transform_wrf_data(patch_data, variables):
+def gridded_probabilities(run_date, forecast_hour, data_dir, ML_model_path, ML_model_name, physical_model, input_vars,
+                          output_vars, meta_vars, patch_radius, stride, gmm=False):
+    """
+    Generate model probabilities across entire grid (compatabile with WRF and HRRR).
+    Args:
+        run_date: model run date in format YYYYMMDD (or "today")
+        forecast_hour: Model forecast Hour in format HH
+        data_dir: Base directory for Raw WRF output or AWS S3 bucket location for HRRR data.
+        ML_model_path: Base path of model.
+        ML_model_name: Name of model.
+        physical_model: Model used to generate data. Supports 'HRRR' or 'WRF'.
+        input_vars: Input variables. Must match those for model data was generated with. For HRRR, use format {variable_name}-{name_of_level}
+        output_vars: Output variables.
+        meta_vars: Meta variables to be kept.
+        patch_radius: Radius of patches CNN model was trained on.
+        stride: Window stride in both x and y directions to sample patches from full grid
+        gmm (boolean): Use Gaussian Mixture Model. If False, default to CNN.
+    Returns:
+        (List) Containing each model run.
+    """
+
+    mod = load_conv_net(join(ML_model_path, ML_model_name), ML_model_name)
+    scale_values = pd.read_csv(join(ML_model_path, ML_model_name, f"scale_values_{ML_model_name}.csv"))
+    scale_values['variable'] = [i.split('-')[0] for i in input_vars]
+    scale_values = scale_values.set_index('variable')
+    if gmm:
+        gmm_mod = joblib.load(join(ML_model_path, ML_model_name, f'{ML_model_name}.gmm'))
+        cluster_assignments = joblib.load(join(ML_model_path, ML_model_name, f'{ML_model_name}_gmm_labels.dict'))
+    patch_size = patch_radius * 2 + 1
+    mode_types = ['QLCS', 'Supercell', 'Disorganized']
+    daily_list = []
+    ds = load_gridded_data(data_dir, physical_model, run_date, forecast_hour, input_vars, output_vars, meta_vars)
+    ds_coarse = ds.isel(row=slice(patch_size + 1, ds.row.size, stride), col=slice(patch_size + 1, ds.col.size, stride))
+    input_vars = [x.split("-")[0] for x in input_vars]
+    for mode_type in mode_types:
+        ds_coarse[f'{mode_type}'] = ds_coarse[input_vars[0]] * np.nan
+        ds_coarse[f'{mode_type}_prob'] = ds_coarse[input_vars[0]] * np.nan
+    if physical_model.upper() == 'HRRR':
+        reflectivity = 'REFC'
+    elif physical_model.upper() == 'WRF':
+        reflectivity = 'REFL_COM'
+    for time_i in range(len(ds_coarse['Time'])):
+        print(time_i)
+        ns, we, = ds['row'].size, ds['col'].size
+        for i_count, i in enumerate(np.arange(0, ns - patch_size, stride)):
+            for j_count, j in enumerate(np.arange(0, we - patch_size, stride)):
+                y, x = slice(i, i + patch_size), slice(j, j + patch_size)
+                p = ds.isel(Time=slice(time_i, time_i + 1), row=y, col=x)
+                if p[reflectivity].values.max() > 35:
+                    p_transformed = transform_data(p, input_vars, scale_values)
+                    if gmm:
+                        preds = get_gmm_predictions(p_transformed, mod, gmm_mod, cluster_assignments)
+                    else:
+                        preds = mod.predict(p_transformed)
+                    ds_coarse['QLCS_prob'].loc[dict(Time=time_i, row=i_count, col=j_count)] = preds[0][0]
+                    ds_coarse['Supercell_prob'].loc[dict(Time=time_i, row=i_count, col=j_count)] = preds[0][1]
+                    ds_coarse['Disorganized_prob'].loc[dict(Time=time_i, row=i_count, col=j_count)] = preds[0][2]
+    ds_coarse['QLCS'].values = np.where(ds_coarse['QLCS_prob'] > (1 / 3), 1, np.nan)
+    ds_coarse['Supercell'].values = np.where(ds_coarse['Supercell_prob'] > (1 / 3), 1, np.nan)
+    ds_coarse['Disorganized'].values = np.where(ds_coarse['Disorganized_prob'] > (1 / 3), 1, np.nan)
+    daily_list.append(ds_coarse)
+    del ds_coarse
+
+    return daily_list
+
+
+def transform_data(patch_data, variables, scale_values):
     """
     Combines separate DataArrays from a Dataset into one combined and scaled DataArray for input to deep learning.
 
     Args:
         patch_data: :class:`xarray.Dataset` being combined.
         variables: List of variable names.
+        scale_values: Dataframe of Min/Max Scale values for each variable
 
     Returns:
-         combined: xarray.DataArray with dimensions (p, row, col, var_name)
+         sclaed_data: Scaled xarray.DataArray with dimensions (p, row, col, var_name)
     """
     combined = xr.concat([patch_data[variable] for variable in variables],
-                         pd.Index(variables, name="var_name")).transpose("Time", "south_north", "west_east", "var_name")
+                         pd.Index(variables, name="var_name")).transpose("Time", "row", "col", "var_name")
     scaled_data, scale_v = min_max_scale(combined, scale_values)
     return scaled_data
 
 
-def predict_wrf_patches(start_date, end_date, data_dir, model_path, model_name, scale_values, input_vars, output_vars,
-                        meta_vars, patch_radius, gmm=False):
+def load_gridded_data(data_path, physical_model, run_date, forecast_hour, input_vars, output_vars, meta_vars):
     """
-    Generate model probabilities across entire WRF Grid.
+    Load Model data across entire grid for specified model run. Supports WRF and HRRR.
+
     Args:
-        start_date: start date in format YYYYMMDD (or "today")
-        end_date: End date in format YYYYMMDD (or "today")
-        data_dir: Base directory for Raw WRF output.
-        model_path: Base path of model.
-        model_name: Name of model.
-        scale_values: CSV file of scale values (min/max) used for CNN training.
-        input_vars: Input variables.
-        output_vars: Output varialbes.
+        data_path: Base directory for Raw WRF output or AWS S3 bucket location for HRRR data.
+        physical_model: Model used to generate data. Supports 'HRRR' or 'WRF'.
+        run_date: model run date in format YYYYMMDD (or "today")
+        forecast_hour: Model forecast Hour in format HH
+        input_vars: Input variables. Must match those for model data was generated with. For HRRR, use format {variable_name}-{name_of_level}
+        output_vars: Output variables.
         meta_vars: Meta variables to be kept.
-        patch_radius: Radius of patches CNN model was trained on.
     Returns:
-        (List) Containing each model run.
+        Xarray dataset loaded into memory
     """
 
-    mod = load_conv_net(join(model_path, model_name), model_name)
-    patch_size = patch_radius * 2 + 1
-    dates = pd.date_range(start_date, end_date)
-    mode_types = ['QLCS', 'Supercell', 'Disorganized']
-    daily_list = []
-    for date in dates:
-        date = date.strftime('%Y%m%d00')
-        ds = xr.open_mfdataset(join(output_dir, date, 'wrf_rundir', 'ens_1', 'diags*'), combine='nested',
-                               concat_dim='Time')
-        ds = ds[input_vars + output_vars + meta_vars].load()
-        for mode_type in mode_types:
-            ds[f'{mode_type}'] = ds[input_vars[0]] * 0
-            ds[f'{mode_type}_prob'] = ds[input_vars[0]] * 0
-        for time_i in range(len(ds['Time'])):
-            print(time_i)
-            ns, we, = ds['south_north'].size, ds['west_east'].size
-            for i in np.arange(0, ns - patch_size, patch_size):
-                for j in np.arange(0, we - patch_size, patch_size):
-                    y, x = slice(i, i + patch_size), slice(j, j + patch_size)
-                    p = ds.isel(Time=slice(time_i, time_i + 1), south_north=y, west_east=x)
-                    p_transformed = transform_wrf_data(p, input_vars)
-                    if p['REFL_COM'].values.max() > 35:
-                        if gmm:
-                            preds = get_gmm_predictions(p_transformed, mod, model_path, model_name)
+    if physical_model.upper() == 'WRF':
 
-                        else:
-                            preds = mod.predict(p_transformed)
-                        ds['QLCS_prob'].loc[dict(Time=time_i, south_north=y, west_east=x)] = np.full(
-                            (patch_size, patch_size), preds[0][0])
-                        ds['Supercell_prob'].loc[dict(Time=time_i, south_north=y, west_east=x)] = np.full(
-                            (patch_size, patch_size), preds[0][1])
-                        ds['Disorganized_prob'].loc[dict(Time=time_i, south_north=y, west_east=x)] = np.full(
-                            (patch_size, patch_size), preds[0][2])
-        ds['QLCS'].values = np.where(ds['QLCS_prob'] > (1 / 3), 1, np.nan)
-        ds['Supercell'].values = np.where(ds['Supercell_prob'] > (1 / 3), 1, np.nan)
-        ds['Disorganized'].values = np.where(ds['Disorganized_prob'] > (1 / 3), 1, np.nan)
-        daily_list.append(ds)
-        del ds
+        # ds = xr.open_mfdataset(join(data_path, run_date, forecast_hour, 'wrf_rundir', 'ens_1', 'diags*'),
+        #                        combine='nested', concat_dim='Time', parallel=True)
+        ds = xr.open_mfdataset(join(data_path, "diags*"), combine='nested', concat_dim='Time', parallel=True)
+        ds = ds.rename_dims(dict(south_north='row', west_east='col'))
 
-    return daily_list
+        return ds[input_vars + output_vars + meta_vars].load()
+
+    elif physical_model.upper() == 'HRRR':
+
+        run_date_str = pd.to_datetime(run_date).strftime("%Y%m%d")
+        forecast_hour_str = pd.to_datetime(join(run_date, forecast_hour)).strftime("%H")
+        datasets = []
+
+        for variable in input_vars:
+            files = []
+            level = variable.split('-')[1]
+            variable = variable.split('-')[0]
+            fs = s3fs.S3FileSystem(anon=True)
+
+            coord_path = join(data_path, run_date_str, f'{run_date_str}_{forecast_hour_str}z_fcst.zarr', level,
+                              variable)
+            f = s3fs.S3Map(root=coord_path, s3=fs, check=False)
+            files.append(f)
+
+            path = join(data_path, run_date_str, f'{run_date_str}_{forecast_hour_str}z_fcst.zarr', level, variable,
+                        level)
+            f = s3fs.S3Map(root=path, s3=fs, check=False)
+            files.append(f)
+
+            ds = xr.open_mfdataset(files, engine='zarr').load()
+            datasets.append(ds)
+
+        all_ds = xr.merge(datasets)
+        all_ds = all_ds.rename_dims(dict(projection_x_coordinate='col', projection_y_coordinate='row', time='Time'))
+
+        return all_ds.load()
