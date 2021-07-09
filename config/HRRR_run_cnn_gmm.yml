@@ -9,6 +9,7 @@ run_freq: "hourly"
 out_path: "/glade/scratch/cbecker/HWT_rt_mods/"
 activation_path: "/glade/scratch/cbecker/HWT_realtime_test/activations/"
 labels_path: "/glade/scratch/cbecker/HWT_realtime_test/labels/"
+output_format: "parquet"
 models:
   semi_supervised:
     mod_0:

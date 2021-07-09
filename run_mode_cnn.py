@@ -86,11 +86,25 @@ def main():
                                               f'{config["csv_model_prefix"]}{start_str}.csv'))
             labels['MAX_UPHL'] = pd.merge(labels, agg_storm_data.drop(skips), on=labels.index)[config["agg_variables"]]
             if start_str != end_str:
-                labels.to_pickle(join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.pkl'))
-                print('Wrote', join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.pkl'))
+                if config['output_format'] == 'csv':
+                    labels.to_csv(join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.csv'),
+                                  index_label=False)
+                elif config['output_format'] == 'parquet':
+                    labels.to_parquet(join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.parquet'))
+                else:
+                    raise ValueError(f'File format {config["output_format"]} not found. Please use "parquet" or "csv"')
+                print('Wrote', join(config["labels_path"],
+                                    f'{model_name}_labels_{start_str}_{end_str}.{config["output_format"]}'))
             else:
-                labels.to_pickle(join(config["labels_path"], f'{model_name}_labels_{start_str}.pkl'))
-                print('Wrote', join(config["labels_path"], f'{model_name}_labels_{start_str}.pkl'))
+                if config['output_format'] == 'csv':
+                    labels.to_csv(join(config["labels_path"], f'{model_name}_labels_{start_str}.csv'),
+                                  index_label=False)
+                elif config['output_format'] == 'parquet':
+                    labels.to_parquet(join(config["labels_path"], f'{model_name}_labels_{start_str}.parquet'))
+                else:
+                    raise ValueError(f'File format {config["output_format"]} not found. Please use "parquet" or "csv"')
+                print('Wrote', join(config["labels_path"],
+                                    f'{model_name}_labels_{start_str}.{config["output_format"]}'))
 
     print("Completed.")
 
