@@ -109,7 +109,7 @@ if df.empty:
 # Throw out weak UH objects
 good_UH = 25
 igood_UH = (df['UP_HELI_MAX_max'] >= good_UH) | (df['UP_HELI_MIN_min'].abs() >= good_UH)
-print("ignoring",(~igood_UH).sum(),"object with UH <",good_UH)
+print("ignoring",(~igood_UH).sum(),"object with abs(UH) <",good_UH)
 if debug:
     print(df[~igood_UH][["Step_ID","UP_HELI_MAX_max","UP_HELI_MIN_min"]])
 df = df[igood_UH]
