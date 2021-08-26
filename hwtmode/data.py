@@ -86,6 +86,7 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
     meta_data["p"] = np.arange(meta_data["p"].size)
     return input_data, output_data, meta_data
 
+
 def get_meta_scalars(meta_data):
     meta_vars = list(meta_data.data_vars.keys())
     scalar_vars = []
@@ -110,8 +111,6 @@ def combine_patch_data(patch_data, variables):
     combined = xr.concat([patch_data[variable] for variable in variables],
                          pd.Index(variables, name="var_name"))
     return combined.transpose("p", "row", "col", "var_name")
-
-
 
 
 def min_max_scale(patch_data, scale_values=None):
@@ -203,8 +202,6 @@ def predict_labels_gmm(neuron_acts, neuron_columns, gmm_model, cluster_dict, obj
     if objects:
         labels_w_meta.insert(1, 'forecast_hour', ((labels_w_meta['time'] - labels_w_meta['run_date']) /
                                                   pd.Timedelta(hours=1)).astype('int32'))
-
-
     return labels_w_meta
 
 

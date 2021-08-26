@@ -6,7 +6,8 @@ from hwtmode.data import lat_to_web_mercator, lon_to_web_mercator
 from os.path import join
 import xarray as xr
 import joblib
-from hwtmode.data import transform_data, get_gmm_predictions, load_gridded_data, load_conv_net
+from hwtmode.data import transform_data, get_gmm_predictions, load_gridded_data
+from hwtmode.models import load_conv_net
 
 
 def brier_skill_score(y_true, y_pred):
