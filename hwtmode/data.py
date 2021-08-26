@@ -133,8 +133,8 @@ def min_max_scale(patch_data, scale_values=None):
     for v, var_name in enumerate(patch_data["var_name"].values):
         print(var_name)
         if fit:
-            scale_values.loc[var_name, "min"] = patch_data[..., v].min().values[()]
-            scale_values.loc[var_name, "max"] = patch_data[..., v].max().values[()]
+            scale_values.loc[var_name, "min"] = patch_data[..., v].min().values
+            scale_values.loc[var_name, "max"] = patch_data[..., v].max().values
         transformed[..., v] = (patch_data[..., v] - scale_values.loc[var_name, "min"]) \
             / (scale_values.loc[var_name, "max"] - scale_values.loc[var_name, "min"])
     return transformed, scale_values
