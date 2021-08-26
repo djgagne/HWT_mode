@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, brier_score_loss
 import scipy
+from hwtmode.data import lat_to_web_mercator, lon_to_web_mercator
 from os.path import join
 
 
@@ -103,9 +104,10 @@ def generate_storm_grid(beg, end, label_path, model_list, model_grid, min_lead_t
             else:
                 df_storms[storm_type] = d[d['label'] == storm_type]
 
-            storm_indxs[storm_type] = find_coord_indices(model_grid['lon'].values, model_grid['lat'].values,
-                                                         df_storms[storm_type]['centroid_lon'],
-                                                         df_storms[storm_type]['centroid_lat'])
+            storm_indxs[storm_type] = find_coord_indices(lon_to_web_mercator(model_grid['lon'].values),
+                                                         lat_to_web_mercator(model_grid['lat'].values),
+                                                         lon_to_web_mercator(df_storms[storm_type]['centroid_lon']),
+                                                         lat_to_web_mercator(df_storms[storm_type]['centroid_lat']))
             storm_grid[f'{model}_{storm_type}'] = storm_grid['lat'] * 0
             for i in storm_indxs[storm_type]:
                 storm_grid[f'{model}_{storm_type}'][i[0], i[1]] = 1
