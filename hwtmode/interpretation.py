@@ -9,7 +9,6 @@ import pandas as pd
 import seaborn as sns
 from collections import Counter
 import xarray as xr
-import cartopy
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from scipy.ndimage.filters import gaussian_filter

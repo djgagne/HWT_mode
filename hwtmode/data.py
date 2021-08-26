@@ -8,8 +8,6 @@ from skimage import measure
 from shapely.geometry import Polygon
 import joblib
 import s3fs
-from hwtmode.models import load_conv_net
-
 
 
 def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: str, input_variables: list,
