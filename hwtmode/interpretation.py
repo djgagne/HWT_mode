@@ -21,7 +21,7 @@ def corr_coef_metric(y_true, y_pred):
 
 
 def score_neurons(y_true, neuron_activations, metric="auc"):
-    scores = np.zeros(neuron_activations.shape[1], dtype=np.float32)
+    scores = np.zeros(neuron_activations.shape[1])
     if metric == "auc":
         for i in range(neuron_activations.shape[1]):
             scores[i] = roc_auc_score(y_true, neuron_activations[:, i])
