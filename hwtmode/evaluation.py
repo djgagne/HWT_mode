@@ -2,12 +2,12 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, brier_score_loss
 import scipy
-from hwtmode.data import lat_to_web_mercator, lon_to_web_mercator
 from os.path import join
 import xarray as xr
 import joblib
 from hwtmode.data import transform_data, get_gmm_predictions, load_gridded_data
 from hwtmode.models import load_conv_net
+from pyproj import Proj
 
 
 def brier_skill_score(y_true, y_pred):
@@ -41,22 +41,28 @@ def classifier_metrics(y_true, model_predictions):
     return metrics
 
 
-def find_coord_indices(lon_array, lat_array, lon_points, lat_points):
+def find_coord_indices(lon_array, lat_array, lon_points, lat_points, dist_proj='lcc'):
     """
     Find indices of nearest lon/lat pair on a grid. Supports rectilinear and curilinear grids.
     lon_points / lat_points must be received as a list.
     Args:
-        lon_array (np.array): Array of longitude from model grid
-        lat_array (np.array): Array of lattitude from model grid
-        lon_points (list): List of longitude points from storm objects
-        lat_points (list): List of lattitude points from storm objects
+        lon_array (np.array): Longitude values of coarse grid you are matching against
+        lat_array (np.array): Latitude values of coarse grid you are matching against
+        lon_points (list): List of Longitude points from orginal grid/object
+        lat_points (list): List of Latitude points from original grid/object
+        dist_proj (str): Name of projection for pyproj to calculate distances
+    Returns (list):
+        List of i, j (Lon/Lat) indices for coarse grid.
 
-    Returns:
-        List of indices (i,j) on grid where storms were located.
     """
-    lonlat = np.column_stack((lon_array.ravel(), lat_array.ravel()))
-    ll = np.array([lon_points, lat_points]).T
-    idx = scipy.spatial.distance.cdist(lonlat, ll).argmin(0)
+    if dist_proj == 'lcc':
+        proj = Proj(proj='lcc', R=6371229, lat_0=38.336433, lon_0=-97.53348, lat_1=32, lat_2=46)  ## from WRF HWT data
+
+    proj_lon, proj_lat = np.array(proj(lon_array, lat_array))  # transform to distances using specified projection
+    lonlat = np.column_stack(
+        (proj_lon.ravel(), proj_lat.ravel()))  # Stack all coarse x, y distances for array shape (n, 2)
+    ll = np.array(proj(lon_points, lat_points)).T  # transform lists of fine grid x, y to match shape (n, 2)
+    idx = scipy.spatial.distance.cdist(lonlat, ll).argmin(0)  # Calculate all distances and get index of minimum
 
     return np.column_stack((np.unravel_index(idx, lon_array.shape))).tolist()
 
@@ -114,10 +120,10 @@ def generate_obs_grid(beg, end, obs_path, model_grid_path):
             ds[report_type.split('_')[-1]] = ds['lat'] * 0
 
             obs_sub = obs[obs['Actual_Date'] == valid_date]
-            obs_indx = find_coord_indices(lon_to_web_mercator(ds['lon'].values),
-                                          lat_to_web_mercator(ds['lat'].values),
-                                          lon_to_web_mercator(obs_sub['Lon']),
-                                          lat_to_web_mercator(obs_sub['Lat']))
+            obs_indx = find_coord_indices(ds['lon'].values,
+                                          ds['lat'].values,
+                                          obs_sub['Lon'],
+                                          obs_sub['Lat'])
             for i in obs_indx:
                 if i is not None:
                     ds[report_type.split('_')[-1]][i[0], i[1]] += 1
@@ -177,10 +183,10 @@ def generate_storm_grid(beg, end, label_path, model_list, model_grid, min_lead_t
             else:
                 df_storms[storm_type] = d[d['label'] == storm_type]
 
-            storm_indxs[storm_type] = find_coord_indices(lon_to_web_mercator(model_grid['lon'].values),
-                                                         lat_to_web_mercator(model_grid['lat'].values),
-                                                         lon_to_web_mercator(df_storms[storm_type]['centroid_lon']),
-                                                         lat_to_web_mercator(df_storms[storm_type]['centroid_lat']))
+            storm_indxs[storm_type] = find_coord_indices(model_grid['lon'].values,
+                                                         model_grid['lat'].values,
+                                                         df_storms[storm_type]['centroid_lon'],
+                                                         df_storms[storm_type]['centroid_lat'])
             storm_grid[f'{model}_{storm_type}'] = storm_grid['lat'] * 0
             for i in storm_indxs[storm_type]:
                 storm_grid[f'{model}_{storm_type}'][i[0], i[1]] = 1
