@@ -13,6 +13,7 @@ dependencies:
   - netcdf4
   - scikit-learn
   - seaborn
+  - pyproj
   - cartopy
   - tqdm
   - memory_profiler
