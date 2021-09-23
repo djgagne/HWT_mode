@@ -27,7 +27,7 @@ import matplotlib.colors as colors
 parser = argparse.ArgumentParser(description = "Plot WRF and SPC storm reports",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-f", "--fill", type=str, default= 'crefuh', help='netCDF variable name for contour fill field')
-parser.add_argument("-b", "--barb", choices=["shr06", "wind10m"], type=str, default="wind10m", help='wind barbs')
+parser.add_argument("-b", "--barb", choices=["shr06", "wind10m",""], type=str, default="wind10m", help='wind barbs')
 parser.add_argument("-c", "--contour", type=str, default=None, help='contour field')
 parser.add_argument("-o", "--outdir", type=str, default='.', help="name of output path")
 parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side in km", 
@@ -108,10 +108,15 @@ if df.empty:
 
 # Throw out weak UH objects
 good_UH = 25
-igood_UH = (df['UP_HELI_MAX_max'] >= good_UH) | (df['UP_HELI_MIN_min'].abs() >= good_UH)
+igood_UH = df['UP_HELI_MAX_max'] >= good_UH
+if 'UP_HELI_MIN_min' in df.columns:
+    igood_UH = igood_UH | (df['UP_HELI_MIN_min'].abs() >= good_UH)
 print("ignoring",(~igood_UH).sum(),"object with abs(UH) <",good_UH)
 if debug:
-    print(df[~igood_UH][["Step_ID","UP_HELI_MAX_max","UP_HELI_MIN_min"]])
+    if 'UP_HELI_MIN_min' in df.columns:
+        print(df[~igood_UH][["Step_ID","UP_HELI_MAX_max","UP_HELI_MIN_min"]])
+    else:
+        print(df[~igood_UH][["Step_ID","UP_HELI_MAX_max"]])
 df = df[igood_UH]
 if df.empty:
     print("csv track step file", tracks, " has no good UH objects at requested valid time",valid_time,". That is probably fine.")
@@ -161,6 +166,11 @@ if fill not in wrfnc.variables:
 if debug:
     print("getvar...")
 cvar = getvar(wrfnc,fill)
+wrflat, wrflon = latlon_coords(cvar)
+# get cartopy mapping object
+if debug: print("get_cartopy...")
+WRF_proj = get_cartopy(cvar)
+fineprint0 = 'fill '+fill+" ("+cvar.units+") "
 
 if 'units' in info.keys():
     cvar.metpy.convert_units(info['units'])
@@ -170,10 +180,6 @@ if hasattr(cvar, 'long_name'):
 elif hasattr(cvar, 'description'):
     label = cvar.description
 
-wrflat, wrflon = latlon_coords(cvar)
-# get cartopy mapping object
-if debug: print("get_cartopy...")
-WRF_proj = get_cartopy(cvar)
 
 # convert WRF lat/lons to x,y
 pts = WRF_proj.transform_points(cartopy.crs.PlateCarree(), to_np(wrflon[::stride,::stride]), to_np(wrflat[::stride,::stride])) # Transform lon/lat to x and y (in meters) in WRF projection.
@@ -188,8 +194,7 @@ ax.add_feature(cartopy.feature.STATES.with_scale('10m'), linewidth=0.35, alpha=0
 ax.set_title(history_time.strftime("%b %HZ"))
 
 # Empty fineprint placeholder in lower left corner of image.
-fineprint0 = 'fill '+fill+" ("+cvar.units+") "
-fineprint_obj = plt.annotate(s=fineprint0, xy=(0,5), xycoords=('axes fraction', 'figure pixels'), va="bottom", fontsize=4)
+fineprint_obj = plt.annotate(text=fineprint0, xy=(0,5), xycoords=('axes fraction', 'figure pixels'), va="bottom", fontsize=4)
 
 if cvar.min() > levels[-1] or cvar.max() < levels[0]:
     print('levels',levels,'out of range of cvar', cvar.values.min(), cvar.values.max())
@@ -204,7 +209,8 @@ cfill = ax.contourf(x, y, to_np(cvar[::stride,::stride]), levels=levels, cmap=cm
 
 # Color bar
 cb = plt.colorbar(cfill, ax=ax, format='%.0f', shrink=0.52, orientation='horizontal')
-cb.set_label(label+" ("+cvar.units+")", fontsize="small")
+if hasattr(cvar,"units"):
+    cb.set_label(label+" ("+cvar.units+")", fontsize="small")
 if len(levels) < 10:
     # label every level if there is room.
     cb.set_ticks(levels)
@@ -315,10 +321,11 @@ if contour:
 
 for lon,lat,stepid,trackid,u,v,pngfile in zip(df.Centroid_Lon, df.Centroid_Lat,df.Step_ID,df.Track_ID,df.Storm_Motion_U,df.Storm_Motion_V,pngfiles):
 
-    fineprint = fineprint0 + "\n" + os.path.realpath(wrfout)
+    fineprint = fineprint0 + "\nwrfout " + os.path.realpath(wrfout)
     if not no_mask:
-        fineprint += "\n"+patches
-    fineprint += "\ntrack "+trackid
+        fineprint += "\npatches "+patches
+    fineprint += "\ntracks "+tracks
+    fineprint += "\ntrackid "+trackid
     fineprint += "\ncreated "+str(datetime.datetime.now(tz=None)).split('.')[0]
 
     if not no_fineprint: # show fineprint
