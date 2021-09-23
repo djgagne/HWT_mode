@@ -39,6 +39,10 @@ def main():
     input_scaled = {}
     scale_values = {}
     predictions = {}
+    if exists('mask') in config:
+        mask = config['mask']
+    else:
+        mask = False
     modes = ["train", "val", "test"]
     # Load training, validation, and testing data
     for mode in modes:
@@ -48,7 +52,8 @@ def main():
                                                                  config["input_variables"],
                                                                  config["output_variables"],
                                                                  config["meta_variables"],
-                                                                 config["patch_radius"])
+                                                                 config["patch_radius"],
+                                                                 mask)
         input_combined[mode] = combine_patch_data(data_input[mode], config["input_variables"])
         if mode == "train":
             input_scaled[mode], scale_values[mode] = min_max_scale(input_combined[mode])
@@ -61,6 +66,7 @@ def main():
             labels[mode] = np.where(out_max[mode] >= config["classifier_threshold"], 1, 0)
         else:
             labels[mode] = out_max[mode]
+    del data_input, out_max
     if not exists(config["out_path"]):
         makedirs(config["out_path"])
     scale_values["train"].to_csv(join(config["out_path"], "scale_values.csv"),
@@ -132,8 +138,10 @@ def main():
                     neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
                                                                         neuron_activations[model_name][mode][neuron_columns].values,
                                                         metric="r")
+                del saliency[model_name][mode]
             neuron_scores[model_name].to_csv(join(config["out_path"],
                                              f"neuron_scores_{model_name}.csv"), index_label="mode")
+            del models[model_name], neuron_scores[model_name]
     if args.plot:
         print("Begin plotting")
         if "plot_kwargs" not in config.keys():
@@ -176,19 +184,20 @@ def main():
                                          neuron_scores[model_name].loc[mode].values,
                                          saliency[model_name][mode],
                                          variable_name, plot_kwargs=plot_kwargs)
-        if args.plot2:
-            print("Additional Plotting...")
-            for model_name in config["models"].keys():
-                for mode in modes:
-                    neuron_activations = pd.read_csv(join(config["out_path"],
-                                            f"neuron_activations_{model_name}_{mode}.csv"),
-                                            index_col="index")
-                    cape_shear_modes(neuron_activations, config["out_path"], config["data_path"],
-                                     model_name, mode, num_storms=50)
-                    spatial_neuron_activations(neuron_activations, config["out_path"], model_name,
-                                               mode, quant_thresh=0.9)
-                    diurnal_neuron_activations(neuron_activations, config["out_path"], model_name,
-                                               mode, quant_thresh=0.9)
+                del saliency[model_name][mode]
+    if args.plot2:
+        print("Additional Plotting...")
+        for model_name in config["models"].keys():
+            for mode in modes:
+                neuron_activations = pd.read_csv(join(config["out_path"],
+                                        f"neuron_activations_{model_name}_{mode}.csv"),
+                                        index_col="index")
+                cape_shear_modes(neuron_activations, config["out_path"], config["data_path"],
+                                 model_name, mode, num_storms=5000)
+                spatial_neuron_activations(neuron_activations, config["out_path"], model_name,
+                                           mode, quant_thresh=0.95)
+                diurnal_neuron_activations(neuron_activations, config["out_path"], model_name,
+                                           mode, quant_thresh=0.95)
     return
 
 

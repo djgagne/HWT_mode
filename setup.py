@@ -5,11 +5,13 @@ requirements = ["numpy",
                 "scipy",
                 "xarray",
                 "pandas",
+                "dask[dataframe]",
                 "tensorflow>=2.0.0",
                 "pyyaml",
                 "tqdm",
                 "netcdf4",
                 "matplotlib",
+                "seaborn",
                 "scikit-learn"]
 
 setup(name="hwtmode",
