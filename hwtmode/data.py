@@ -49,11 +49,12 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
     else:
         start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d %H:00:00"))
         end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d %H:00:00"))
+
     date_filter = (patch_dates >= start_date_stamp) & (patch_dates <= end_date_stamp)
     valid_patch_files = patch_files[date_filter]
     valid_patch_dates = patch_dates[date_filter]
     if len(valid_patch_files) == 0:
-        raise FileNotFoundError("No patch files found in " + patch_1dir)
+        raise FileNotFoundError("No patch files found in " + patch_dir)
     input_data_list = []
     output_data_list = []
     meta_data_list = []
