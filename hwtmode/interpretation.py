@@ -12,7 +12,7 @@ import xarray as xr
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from scipy.ndimage.filters import gaussian_filter
-from .evaluation import generate_storm_grid
+from .process import generate_mode_grid
 sns.set_style("darkgrid")
 
 def corr_coef_metric(y_true, y_pred):
@@ -395,7 +395,7 @@ def plot_ensemble_neighborhood(beg, end, model_list, label_path, model_grid_path
         gaussian_filter_sigma: Standard deviation to be used in the spatial gaussian smoother
     """
     model_grid = xr.open_dataset(model_grid_path)
-    storm_grid = generate_storm_grid(beg, end, label_path, model_list, model_grid,
+    storm_grid = generate_mode_grid(beg, end, label_path, model_list, model_grid,
                                      min_lead_time, max_lead_time, file_format)
     lcc = ccrs.LambertConformal(central_longitude=-97.5, standard_parallels=(38.5, 38.5))
     fig, axes = plt.subplots(2, 3, figsize=(30, 19.6), sharex=True, sharey=True, subplot_kw={'projection': lcc})
