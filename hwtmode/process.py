@@ -72,6 +72,8 @@ def combine_storm_reports(start_date, end_date, out_dir, report_type):
         f.loc[f['Time'] < 1200, 'Actual_Date'] += pd.Timedelta('1D')
         file_list.append(f)
     df = pd.concat(file_list)
+    hours = df.loc[:, 'Time'].apply(lambda x: str(x)[:-2] if len(str(x)) >= 3 else '0').astype(int) + 1
+    df['Actual_Date'] = df['Actual_Date'] + pd.to_timedelta(hours, unit='h')
     return df
 
 
