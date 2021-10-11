@@ -62,12 +62,12 @@ def combine_storm_reports(start_date, end_date, out_dir, report_type):
         report_type (str): SPC extention for specific report type (Ex. 'filtered_torn', 'hail', filtered_wind')
     """
 
-    dates = pd.date_range(start_date, end_date).strftime('%y%m%d')
+    dates = pd.date_range(start_date, end_date)
     file_list = []
     for date in dates:
-        filename = join(out_dir, f'{date}_{report_type}.csv')
+        filename = join(out_dir, f"{date.strftime('%y%m%d')}_{report_type}.csv")
         f = pd.read_csv(filename)
-        f['Report_Date'] = pd.to_datetime(date)
+        f['Report_Date'] = pd.to_datetime(date.strftime('%Y%m%d'))
         f['Actual_Date'] = f['Report_Date']
         f.loc[f['Time'] < 1200, 'Actual_Date'] += pd.Timedelta('1D')
         file_list.append(f)
