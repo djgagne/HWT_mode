@@ -107,3 +107,27 @@ def gridded_probabilities(run_date, forecast_hour, data_dir, ML_model_path, ML_m
     return daily_list
 
 
+def hazard_cond_prob(obs, preds, A, B, nprob_thresh=0.0, secondary_thresh=None):
+    """
+    Get conditional probability. Supports binning of neighborhood probabilities.
+    Args:
+        obs: SPC Observations array
+        preds: HWT mode predictions array
+        A: SPC Hazard ('Torn', 'Hail', 'Wind') or proxy hazard variable
+        B: Condition - Storm Mode prediction ('Supercell', 'QLCS', 'Disorganized')
+        nprob_thresh: Threshold of neighborhood probability (used as lower threshold when binning)
+        secondary_thresh: Upper threshhold for binning (default None)
+    Returns: Conditional probability: P(A|B)
+    """
+    if secondary_thresh is not None:
+        arr = np.where((preds[f'{B}_nprob'] > nprob_thresh) & (preds[f'{B}_nprob'] <= secondary_thresh), 1, 0)
+        hits = np.where((arr >= 1) & (obs[A].values >= 1), 1, 0).sum()
+        mode_bin = np.where(arr >= 1, 1, 0).sum()
+    else:
+        hits = np.where((preds[f'{B}_nprob'] > nprob_thresh).values & (obs[A] >= 1).values, 1, 0).sum()
+        mode_bin = np.where(preds[B] >= 1, 1, 0).sum()
+
+    cond_prob = hits / mode_bin
+
+    return cond_prob
+
