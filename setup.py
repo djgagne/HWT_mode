@@ -12,7 +12,8 @@ requirements = ["numpy",
                 "netcdf4",
                 "matplotlib",
                 "seaborn",
-                "scikit-learn"]
+                "scikit-learn",
+                "s3fs"]
 
 setup(name="hwtmode",
       version="0.1",

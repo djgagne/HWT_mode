@@ -4,21 +4,23 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from os.path import join
-from scipy.ndimage import gaussian_filter
 import dask.dataframe as dd
 import pandas as pd
 import seaborn as sns
+from collections import Counter
 import xarray as xr
-import cartopy
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+from scipy.ndimage.filters import gaussian_filter
+from .process import generate_mode_grid
+sns.set_style("darkgrid")
 
 def corr_coef_metric(y_true, y_pred):
     return np.corrcoef(y_true, y_pred)[0, 1]
 
 
 def score_neurons(y_true, neuron_activations, metric="auc"):
-    scores = np.zeros(neuron_activations.shape[1], dtype=np.float32)
+    scores = np.zeros(neuron_activations.shape[1])
     if metric == "auc":
         for i in range(neuron_activations.shape[1]):
             scores[i] = roc_auc_score(y_true, neuron_activations[:, i])
@@ -248,3 +250,168 @@ def diurnal_neuron_activations(neuron_activations, output_path, model_name, mode
     ax.xaxis.set_tick_params(labelsize=16)
     ax.yaxis.set_tick_params(labelsize=16)
     plt.savefig(join(output_path, f'Diurnal_activations_{model_name}_{mode}.png'), bbox_inches='tight')
+
+
+def plot_cluster_dist(data, output_path, cluster_type, n_cluster):
+    """
+    Bar plot of clusters by percentage.
+    Args:
+        data: Neuron activation dataframe with cluster labels
+        output_path: Output path to save to
+        cluster_type: Cluster algorithm used for file naming
+        n_cluster: Number of unique clusters in clustering algorithm
+
+    Returns:
+    """
+
+    plt.figure(figsize=(12, 6))
+    counts = Counter(data['cluster'])
+    percent_counts = [x / sum(counts.values()) * 100 for x in counts.values()]
+    sns.barplot(list(counts.keys()), percent_counts, palette='deep')
+    plt.xlabel('Cluster', fontsize=14)
+    plt.ylabel('Percent of Storms', fontsize=14)
+    plt.savefig(join(output_path, f'{cluster_type}_{n_cluster}_dist.png'), bbox_inches='tight')
+    return counts
+
+
+def plot_prob_dist(data, output_path, cluster_type, n_cluster):
+    """
+    KDE plot of cluster probabilities.
+    Args:
+        data: Neuron activation dataframe with cluster labels
+        output_path: Output path to save to
+        cluster_type: Cluster algorithm used for file naming
+        n_cluster: Number of unique clusters in clustering algorithm
+
+    Returns:
+    """
+
+    plt.figure(figsize=(12, 6))
+    sns.displot(data=data, x='cluster_prob', hue='cluster', multiple='stack', palette='dark', kind='kde', aspect=2)
+    plt.xlabel('Cluster Probability', fontsize=14)
+    plt.ylabel('Density', fontsize=14)
+    plt.savefig(join(output_path, f'{cluster_type}_{n_cluster}_prob_dist.png'), bbox_inches='tight')
+
+
+
+def plot_prob_cdf(data, output_path, cluster_type, n_cluster):
+    """
+    Plot CDF of cluster label probabilities.
+    Args:
+        data: Neuron activation dataframe with cluster labels
+        output_path: Output path to save to
+        cluster_type: Cluster algorithm used for file naming
+        n_cluster: Number of unique clusters in clustering algorithm
+
+    Returns:
+    """
+    plt.figure(figsize=(12, 6))
+    kwargs = {'cumulative': True}
+    sns.distplot(data['cluster_prob'], hist_kws=kwargs, kde_kws=kwargs)
+    plt.xlabel('Cluster Probability', fontsize=14)
+    plt.ylabel('Density', fontsize=14)
+    plt.savefig(join(output_path, f'{cluster_type}_{n_cluster}_prob_cdf.png'), bbox_inches='tight')
+
+def plot_storm_clusters(patch_data_path, output_path, cluster_data, cluster_method, seed,
+                        n_storms=25, prob_type='highest'):
+    """
+    Args:
+        patch_data_path: Path where storm patches are located.
+        output_path: Output path to save file.
+        cluster_data: Neuron activation dataframe with cluster labels
+        cluster_method: Cluster algorithm used for file naming
+        seed: Random seed used for sampling.
+        n_storms: Number of storms to plot per cluster (should be an even square - 4, 9. 16, 25, ...)
+        prob_type: Probability of storms to plot (only valid for 'GMM'). Should be 'highest', 'lowest', or 'random'
+
+    Returns:
+    """
+
+    ms_mph = 2.237
+    file_dates = sorted(pd.to_datetime(cluster_data['run_date'].unique()))
+    file_paths = sorted(
+        [join(patch_data_path, f'NCARSTORM_{x.strftime("%Y%m%d")}-0000_d01_model_patches.nc') for x in file_dates])
+    ds = xr.open_mfdataset(file_paths, combine='nested', concat_dim='p')
+    wind_slice = (slice(8, None, 12), slice(8, None, 12))
+    x_mesh, y_mesh = np.meshgrid(range(len(ds['row'])), range(len(ds['col'])))
+
+    n_clusters = cluster_data['cluster'].nunique()
+
+    for cluster in range(n_clusters):
+
+        if cluster_method == 'Spectral':
+            sub = cluster_data[cluster_data['cluster'] == cluster].sample(n_storms, random_state=seed)
+        elif cluster_method == 'GMM':
+            if prob_type == 'highest':
+                sub = cluster_data[cluster_data['cluster'] == cluster].sort_values(['cluster_prob'], ascending=False)[:n_storms]
+            elif prob_type == 'lowest':
+                sub = cluster_data[cluster_data['cluster'] == cluster].sort_values(['cluster_prob'], ascending=True)[:n_storms]
+            elif prob_type == 'random':
+                sub = cluster_data[cluster_data['cluster'] == cluster].sample(n_storms, random_state=seed)
+
+        storm_idxs = sub.index.values
+        x = ds[['REFL_COM_curr', 'U10_curr', 'V10_curr']].isel(p=storm_idxs)
+        fig, axes = plt.subplots(int(np.sqrt(n_storms)), int(np.sqrt(n_storms)), figsize=(16, 16), sharex=True, sharey=True)
+        plt.subplots_adjust(wspace=0.03, hspace=0.03)
+
+        for i, ax in enumerate(axes.ravel()):
+
+            im = ax.contourf(x['REFL_COM_curr'][i], levels=np.linspace(0, 80, 51), vmin=0, vmax=80, cmap='gist_ncar')
+            ax.barbs(x_mesh[wind_slice], y_mesh[wind_slice], x['U10_curr'][i][wind_slice] * ms_mph,
+                     x['V10_curr'][i][wind_slice] * ms_mph, color='grey', pivot='middle', length=6)
+
+            if cluster_method == 'GMM':
+                ax.text(3, 4, f"P = {np.round(sub.iloc[i, :]['cluster_prob'], 4)}", style='italic', fontsize=12,
+                        bbox={'facecolor': 'lightgrey', 'alpha': 0.8, 'pad': 10})
+
+            plt.subplots_adjust(right=0.975)
+            cbar_ax = fig.add_axes([1, 0.125, 0.025, 0.83])
+            fig.colorbar(im, cbar_ax)
+            ax.set_xticks([])
+            ax.set_xticks([], minor=True)
+            ax.set_yticks([])
+            ax.set_yticks([], minor=True)
+
+        plt.suptitle(f'Storm Classifications With {cluster_method} Clustering: Cluster {cluster}', fontsize=24)
+        plt.subplots_adjust(top=0.95)
+
+        plt.savefig(join(output_path, f'{cluster_method}_{n_clusters}_{cluster}_patches.png'), bbox_inches='tight')
+
+
+def plot_ensemble_neighborhood(beg, end, model_list, label_path, model_grid_path, out_path, file_format='pkl',
+                               min_lead_time=1, max_lead_time=18, gaussian_filter_sigma=1):
+    """
+    Plot neighborhood spatial probability for two distinct models using output (pickle) from run_mode_cnn.py.
+    Args:
+        beg (str): beginning date string for neighborhood probability (format: 'YYYYMMDDHHHH')
+        end (str): ending date string for neighborhood probability (format: 'YYYYMMDDHHHH') (can be same or after beg)
+        model_list (list): List of model names
+        label_path (str): path to pickle files
+        model_grid_path (str): Path to grid (netCDF) which to plot neighborhood probabilities on
+        out_path (str): Path to output file
+        file_format (str): File format of labels
+        min_lead_time (int): Minimum model lead time
+        max_lead_time (int): Maximum model lead time
+        gaussian_filter_sigma: Standard deviation to be used in the spatial gaussian smoother
+    """
+    model_grid = xr.open_dataset(model_grid_path)
+    storm_grid = generate_mode_grid(beg, end, label_path, model_list, model_grid,
+                                     min_lead_time, max_lead_time, file_format)
+    lcc = ccrs.LambertConformal(central_longitude=-97.5, standard_parallels=(38.5, 38.5))
+    fig, axes = plt.subplots(2, 3, figsize=(30, 19.6), sharex=True, sharey=True, subplot_kw={'projection': lcc})
+    cmap = plt.cm.get_cmap("turbo").copy()
+    plt.subplots_adjust(wspace=0.05, hspace=-0.35)
+    for i, ax in enumerate(axes.ravel()):
+        data = gaussian_filter(storm_grid[list(storm_grid.data_vars)[i]], sigma=gaussian_filter_sigma)
+        ax.set_extent([-120, -74, 25, 50], crs=ccrs.PlateCarree())
+        ax.add_feature(cfeature.LAND)
+        ax.add_feature(cfeature.OCEAN)
+        ax.add_feature(cfeature.COASTLINE)
+        ax.add_feature(cfeature.BORDERS)
+        ax.add_feature(cfeature.LAKES, alpha=0.5)
+        ax.add_feature(cfeature.STATES)
+        p = ax.contourf(storm_grid['lon'], storm_grid['lat'], data, levels=np.linspace(0.02, 1, 11), vmin=0, vmax=1,
+                        alpha=0.75, transform=ccrs.PlateCarree(), cmap=cmap, extend=None)
+        plt.colorbar(p, ax=ax, shrink=0.45)
+        ax.set_title(list(storm_grid.data_vars)[i].replace('_', ' '), fontsize=18, fontweight='bold')
+    plt.savefig(join(out_path, f'neighborhood_prob_{beg}_{end}.png'), dpi=300, bbox_inches='tight')

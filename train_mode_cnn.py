@@ -48,6 +48,7 @@ def main():
     for mode in modes:
         data_input[mode], output[mode], meta[mode] = load_patch_files(config[mode + "_start_date"],
                                                                  config[mode + "_end_date"],
+                                                                 None,
                                                                  config["data_path"],
                                                                  config["input_variables"],
                                                                  config["output_variables"],
@@ -101,6 +102,7 @@ def main():
                 predictions[mode].loc[:, model_name] = models[model_name].predict(input_scaled[mode].values)
         for mode in modes:
             predictions[mode].to_csv(join(config["out_path"], f"predictions_{mode}.csv"), index_label="index")
+        #del
         print("Calculate metrics")
         if config["classifier"]:
             model_scores = classifier_metrics(labels["test"], predictions["test"][list(config["models"].keys())])
@@ -132,16 +134,16 @@ def main():
                                                                             "shuffle": True,
                                                                             "least_significant_digit": 3}})
                 if config["classifier"]:
-                    neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
-                                                                        neuron_activations[model_name][mode][neuron_columns].values)
+                   neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
+                                                                       neuron_activations[model_name][mode][neuron_columns].values)
                 else:
-                    neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
-                                                                        neuron_activations[model_name][mode][neuron_columns].values,
-                                                        metric="r")
+                   neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
+                                                                       neuron_activations[model_name][mode][neuron_columns].values,
+                                                       metric="r")
                 del saliency[model_name][mode]
             neuron_scores[model_name].to_csv(join(config["out_path"],
-                                             f"neuron_scores_{model_name}.csv"), index_label="mode")
-            del models[model_name], neuron_scores[model_name]
+                                            f"neuron_scores_{model_name}.csv"), index_label="mode")
+            del models[model_name], neuron_activations[model_name]
     if args.plot:
         print("Begin plotting")
         if "plot_kwargs" not in config.keys():

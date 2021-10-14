@@ -1,0 +1,39 @@
+patch_data_path: '/glade/scratch/dgagne/NSC_data/track_data_nsc_3km_REFL_COM_ws_nc'
+base_neuron_act_path: '/glade/scratch/cbecker/HWT_out/refl_uh_6_class'
+train_activations: 'neuron_activations_refl_dn6_class_train.csv'
+val_activations: 'neuron_activations_refl_dn6_class_val.csv'
+test_activations: 'neuron_activations_refl_dn6_class_test.csv'
+output_path: '/glade/scratch/cbecker/HWT_out/refl_uh_6_class/clustering'
+cluster_types: ['GMM', 'Spectral']
+n_clusters: [3, 7]
+n_samps: 20000 # only used for Spectral currently
+plot_mode: 'val'
+seed:
+
+plot_kwargs:
+  n_storms: 4
+  prob_type: 'highest'
+
+GMM_kwargs:
+  covariance_type: 'full'
+  max_iter: 1000
+  tol: 0.001
+  n_init: 5
+  init_params: 'kmeans'
+  reg_covar: 0.000001
+  verbose: 1
+
+Spectral_kwargs:
+  eigen_solver: 'arpack'
+  eigen_tol: 0.0
+  n_init: 5
+  affinity: 'nearest_neighbors'
+  gamma: 1.0
+  assign_labels: 'kmeans'
+  degree: 3
+  n_jobs: -1
+
+
+
+
+
