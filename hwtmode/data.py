@@ -75,7 +75,11 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
             output_data_list.append(ds[output_variables].sel(row=row_slice, col=col_slice).compute())
             meta_data_list.append(ds[meta_variables].sel(row=row_slice, col=col_slice).compute())                
         else:
-            input_data_list.append(ds[input_variables].compute())
+            if mask:
+                masked = ds[input_variables].where(ds["masks"] > 0, 0)
+                input_data_list.append(masked.compute())
+            else:
+                input_data_list.append(ds[input_variables].compute())
             output_data_list.append(ds[output_variables].compute())
             meta_data_list.append(ds[meta_variables].compute())            
         ds.close()
