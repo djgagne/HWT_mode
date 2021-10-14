@@ -1,14 +1,16 @@
-data_path: "/glade/scratch/cbecker/HRRR_objects/HRRR_AWS_realtime_033120/track_data_hrrr_3km_nc_refl/"
+data_path: "/glade/scratch/cbecker/HRRR_objects/HRRR_AWS_realtime_test_20211005/track_data_hrrr_3km_nc_refl/"
 csv_model_prefix: "track_step_HRRR-ZARR_oper_"
 meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 agg_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max"]
+#run_start_date: "202105150000"
+#run_end_date: "202105200000"
 run_start_date: "today"
 run_end_date: "today"
-run_freq: "hourly"
-out_path: "/glade/scratch/cbecker/HWT_rt_mods/"
-activation_path: "/glade/scratch/cbecker/HWT_realtime_test/activations/"
-labels_path: "/glade/scratch/cbecker/HWT_realtime_test/labels/"
+run_freq: "daily"
+model_path: "/glade/scratch/cbecker/HWT_rt_mods/"
+activation_path: "/glade/scratch/cbecker/hwt_dev/activations/"
+labels_path: "/glade/scratch/cbecker/hwt_dev/labels/"
 output_format: "parquet"
 models:
   semi_supervised:

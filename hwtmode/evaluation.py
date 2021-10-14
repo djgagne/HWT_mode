@@ -1,13 +1,10 @@
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, brier_score_loss
-import scipy
 from os.path import join
-import xarray as xr
 import joblib
 from hwtmode.data import transform_data, get_gmm_predictions, load_gridded_data
 from hwtmode.models import load_conv_net
-from pyproj import Proj
 
 
 def brier_skill_score(y_true, y_pred):
@@ -39,158 +36,6 @@ def classifier_metrics(y_true, model_predictions):
             metrics.loc[model_name, metric] = metric_funcs[metric](y_true,
                                                                    model_predictions[model_name].values)
     return metrics
-
-
-def find_coord_indices(lon_array, lat_array, lon_points, lat_points, dist_proj='lcc'):
-    """
-    Find indices of nearest lon/lat pair on a grid. Supports rectilinear and curilinear grids.
-    lon_points / lat_points must be received as a list.
-    Args:
-        lon_array (np.array): Longitude values of coarse grid you are matching against
-        lat_array (np.array): Latitude values of coarse grid you are matching against
-        lon_points (list): List of Longitude points from orginal grid/object
-        lat_points (list): List of Latitude points from original grid/object
-        dist_proj (str): Name of projection for pyproj to calculate distances
-    Returns (list):
-        List of i, j (Lon/Lat) indices for coarse grid.
-
-    """
-    if dist_proj == 'lcc':
-        proj = Proj(proj='lcc', R=6371229, lat_0=38.336433, lon_0=-97.53348, lat_1=32, lat_2=46)  ## from WRF HWT data
-
-    proj_lon, proj_lat = np.array(proj(lon_array, lat_array))  # transform to distances using specified projection
-    lonlat = np.column_stack(
-        (proj_lon.ravel(), proj_lat.ravel()))  # Stack all coarse x, y distances for array shape (n, 2)
-    ll = np.array(proj(lon_points, lat_points)).T  # transform lists of fine grid x, y to match shape (n, 2)
-    idx = scipy.spatial.distance.cdist(lonlat, ll).argmin(0)  # Calculate all distances and get index of minimum
-
-    return np.column_stack((np.unravel_index(idx, lon_array.shape))).tolist()
-
-
-def combine_storm_reports(start_date, end_date, out_dir, report_type):
-    """
-    Combine SPC storm reports into single Pandas DataFrame.
-    Args:
-        start_date (str): Starting Date (format: YYYYMMDD)
-        end_date (str): Ending Date (format: YYYYMMDD)
-        out_dir (str): Path to download to
-        report_type (str): SPC extention for specific report type (Ex. 'filtered_torn', 'hail', filtered_wind')
-    """
-
-    dates = pd.date_range(start_date, end_date).strftime('%y%m%d')
-    file_list = []
-    for date in dates:
-        filename = join(out_dir, f'{date}_{report_type}.csv')
-        f = pd.read_csv(filename)
-        f['Report_Date'] = pd.to_datetime('20' + date)
-        f['Actual_Date'] = f['Report_Date']
-        f.loc[f['Time'] < 1200, 'Actual_Date'] += pd.Timedelta('1D')
-        file_list.append(f)
-    df = pd.concat(file_list)
-    hours = df.loc[:, 'Time'].apply(lambda x: str(x)[:-2] if len(str(x)) >= 3 else '0').astype(int) + 1
-    df['Actual_Date'] = df['Actual_Date'] + pd.to_timedelta(hours, unit='h')
-    return df
-
-
-def generate_obs_grid(beg, end, obs_path, model_grid_path):
-    """
-    Generate Xarray dataset (Time, x, y) of observed storm reports. Each hazard is stored as a seperate variable. Valid time is separted by hour. Minimum and maximum
-    lead times are used for ensembled HRRR runs.
-    Args:
-        beg (str): Beginning of date range (format: YYMMDDhhmm)
-        end (str): End of date range (format: YYMMDDhhmm)
-        obs_path: Path to downloaded storm reports
-        model_grid_path: Path to coarse grid
-    Returns:
-        Xarray dataset (Time, x, y) of storm report counts. Different hazards represented as variables.
-    """
-    grid = xr.open_dataset(model_grid_path)
-    valid_dates = pd.date_range(pd.Timestamp(beg), pd.Timestamp(end), freq='1h')
-    obs_list = []
-
-    for report_type in ['filtered_torn', 'filtered_wind', 'filtered_hail']:
-
-        ds_list = []
-
-        obs = combine_storm_reports(beg, end, obs_path, report_type)
-
-        for valid_date in valid_dates:
-
-            ds = grid.expand_dims('time').assign_coords(valid_time=('time', [valid_date]))
-            ds[report_type.split('_')[-1]] = ds['lat'] * 0
-
-            obs_sub = obs[obs['Actual_Date'] == valid_date]
-            obs_indx = find_coord_indices(ds['lon'].values,
-                                          ds['lat'].values,
-                                          obs_sub['Lon'],
-                                          obs_sub['Lat'])
-            for i in obs_indx:
-                if i is not None:
-                    ds[report_type.split('_')[-1]][i[0], i[1]] += 1
-                else:
-                    continue
-            ds_list.append(ds)
-
-        obs_list.append(xr.concat(ds_list, dim='time'))
-
-    return xr.merge(obs_list)
-
-
-def generate_storm_grid(beg, end, label_path, model_list, model_grid, min_lead_time, max_lead_time, file_format):
-    """
-    Populates empty grid in any grid cell that contained a storm in the given date range.
-    Args:
-        beg (str): beginning date string for neighborhood probability (format: 'YYYYMMDDHHHH')
-        end (str): ending date string for neighborhood probability (format: 'YYYYMMDDHHHH') (can be same or after beg)
-        label_path (str): path to pickle files
-        model_list (list): List of model names
-        model_grid (netCDF): Model grid
-        min_lead_time (int): Minimum model lead time
-        max_lead_time (int): Maximum model lead time
-        file_format (str): File format of saved labels
-
-    Returns:
-        populated storm grid
-    """
-    storm_grid = model_grid.copy()
-    dates = pd.date_range(pd.Timestamp(beg) - pd.Timedelta(hours=max_lead_time),
-                          pd.Timestamp(end) - pd.Timedelta(hours=min_lead_time), freq='1h')
-    for model in model_list:
-        df_storms, storm_indxs = {}, {}
-        df_list = []
-        for date in dates:
-            file_string = join(label_path, f"{model}_labels_{date.strftime('%Y%m%d-%H00')}.{file_format}")
-            try:
-                if file_format == 'pkl':
-                    df = pd.read_pickle(file_string)
-                elif file_format == 'csv':
-                    df = pd.read_csv(file_string)
-                    df['time'] = df['time'].astype('datetime64')
-                    df['run_date'] = df['run_date'].astype('datetime64')
-                elif file_format == 'parquet':
-                    df = pd.read_parquet(file_string)
-            except:
-                print(f"{file_string} doesn't seem to exist. Skipping.")
-                continue
-
-            df_list.append(df[(df['time'] >= pd.Timestamp(beg)) & (df['time'] <= pd.Timestamp(end))])
-
-        d = pd.concat(df_list)
-        for storm_type in ['Disorganized', 'QLCS', 'Supercell']:
-
-            if storm_type == 'all':
-                df_storms[storm_type] = d
-            else:
-                df_storms[storm_type] = d[d['label'] == storm_type]
-
-            storm_indxs[storm_type] = find_coord_indices(model_grid['lon'].values,
-                                                         model_grid['lat'].values,
-                                                         df_storms[storm_type]['centroid_lon'],
-                                                         df_storms[storm_type]['centroid_lat'])
-            storm_grid[f'{model}_{storm_type}'] = storm_grid['lat'] * 0
-            for i in storm_indxs[storm_type]:
-                storm_grid[f'{model}_{storm_type}'][i[0], i[1]] = 1
-    return
 
 
 def gridded_probabilities(run_date, forecast_hour, data_dir, ML_model_path, ML_model_name, physical_model, input_vars,
@@ -261,4 +106,28 @@ def gridded_probabilities(run_date, forecast_hour, data_dir, ML_model_path, ML_m
 
     return daily_list
 
+
+def hazard_cond_prob(obs, preds, A, B, nprob_thresh=0.0, secondary_thresh=None):
+    """
+    Get conditional probability. Supports binning of neighborhood probabilities.
+    Args:
+        obs: SPC Observations array
+        preds: HWT mode predictions array
+        A: SPC Hazard ('Torn', 'Hail', 'Wind') or proxy hazard variable
+        B: Condition - Storm Mode prediction ('Supercell', 'QLCS', 'Disorganized')
+        nprob_thresh: Threshold of neighborhood probability (used as lower threshold when binning)
+        secondary_thresh: Upper threshhold for binning (default None)
+    Returns: Conditional probability: P(A|B)
+    """
+    if secondary_thresh is not None:
+        arr = np.where((preds[f'{B}_nprob'] > nprob_thresh) & (preds[f'{B}_nprob'] <= secondary_thresh), 1, 0)
+        hits = np.where((arr >= 1) & (obs[A].values >= 1), 1, 0).sum()
+        mode_bin = np.where(arr >= 1, 1, 0).sum()
+    else:
+        hits = np.where((preds[f'{B}_nprob'] > nprob_thresh).values & (obs[A] >= 1).values, 1, 0).sum()
+        mode_bin = np.where(preds[f'{B}_nprob'] >= 1, 1, 0).sum()
+
+    cond_prob = hits / mode_bin
+
+    return cond_prob
 

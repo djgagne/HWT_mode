@@ -23,16 +23,24 @@ def main():
         if not exists(path):
             makedirs(path)
     models, gmms, neuron_activations = {}, {}, {}
-    if config['run_freq'] == 'hourly':
-        start_str = (pd.Timestamp(config["run_start_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d-%H00")
-        end_str = (pd.Timestamp(config["run_end_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d-%H00")
-    elif config['run_freq'] == 'daily':
-        start_str = (pd.Timestamp(config["run_start_date"], tz="UTC")).strftime("%Y%m%d-0000")
-        end_str = (pd.Timestamp(config["run_end_date"], tz="UTC")).strftime("%Y%m%d-0000")
+    if config["run_start_date"] == "today":
+        if config['run_freq'] == 'hourly':
+            start_str = (pd.Timestamp(config["run_start_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d-%H00")
+            end_str = (pd.Timestamp(config["run_end_date"], tz="UTC") - pd.Timedelta(hours=3)).strftime("%Y%m%d-%H00")
+        elif config['run_freq'] == 'daily':
+            start_str = (pd.Timestamp(config["run_start_date"], tz="UTC")).strftime("%Y%m%d-0000")
+            end_str = (pd.Timestamp(config["run_end_date"], tz="UTC")).strftime("%Y%m%d-0000")
+    else:
+        start_str = (pd.Timestamp(config["run_start_date"], tz="UTC")).strftime("%Y%m%d-%H00")
+        end_str = (pd.Timestamp(config["run_end_date"], tz="UTC")).strftime("%Y%m%d-%H00")
+    if start_str != end_str:
+        date_str = start_str + '_' + end_str
+    else:
+        date_str = start_str
     for model_type, model_dict in config["models"].items():
         for model_name in model_dict.keys():
 
-            scale_values = pd.read_csv(join(config["out_path"], model_name, f"scale_values_{model_name}.csv"))
+            scale_values = pd.read_csv(join(config["model_path"], model_name, f"scale_values_{model_name}.csv"))
             scale_values['variable'] = model_dict[model_name]['input_variables']
             scale_values = scale_values.set_index('variable')
 
@@ -52,7 +60,7 @@ def main():
             print("Input shape:", input_scaled.shape)
             meta_df = get_meta_scalars(meta)
             geometry_df, skips = get_contours(meta)
-            model_out_path = join(config["out_path"], model_name)
+            model_out_path = join(config["model_path"], model_name)
             models[model_name] = load_conv_net(model_out_path, model_name)
             print(model_name, f'({model_type})')
             print(models[model_name].model_.summary())
@@ -64,15 +72,12 @@ def main():
                                                           index=meta_df.index), left_index=True, right_index=True)
                 neuron_activations[model_name].loc[:, neuron_columns] = \
                     models[model_name].output_hidden_layer(input_scaled.values)
-                if start_str != end_str:
-                    neuron_activations[model_name].to_csv(join(config["activation_path"],
-                                                    f'{model_name}_activations_{start_str}_{end_str}.csv'), index=False)
-                else:
-                    neuron_activations[model_name].to_csv(join(config["activation_path"],
-                                                               f'{model_name}_activations_{start_str}.csv'), index=False)
 
-                gmms[model_name] = joblib.load(join(config["out_path"], model_name, f'{model_name}.gmm'))
-                cluster_assignments = joblib.load(join(config["out_path"], model_name, f'{model_name}_gmm_labels.dict'))
+                neuron_activations[model_name].to_csv(join(config["activation_path"],
+                                                           f'{model_name}_activations_{date_str}.csv'), index=False)
+
+                gmms[model_name] = joblib.load(join(config["model_path"], model_name, f'{model_name}.gmm'))
+                cluster_assignments = joblib.load(join(config["model_path"], model_name, f'{model_name}_gmm_labels.dict'))
                 labels = predict_labels_gmm(neuron_activations[model_name], neuron_columns, gmms[model_name],
                                         cluster_assignments)
                 labels = pd.merge(labels, geometry_df)
@@ -82,29 +87,25 @@ def main():
                 labels = predict_labels_cnn(input_scaled, meta_df, models[model_name])
                 labels = pd.merge(labels, geometry_df)
 
-            agg_storm_data = pd.read_csv(join(config['data_path'].replace('nc', 'csv'),
-                                              f'{config["csv_model_prefix"]}{start_str}.csv'))
+            l = []
+            for d in pd.date_range(start_str.replace('-',''), end_str.replace('-',''),
+                                   freq=config['run_freq'][0]):
+                agg_df = pd.read_csv(join(config['data_path'].replace('nc', 'csv'),
+                                              f'{config["csv_model_prefix"]}{d.strftime("%Y%m%d-%H00")}.csv'))
+                l.append(agg_df)
+            agg_storm_data = pd.concat(l).reset_index(drop=True)
+
             labels['MAX_UPHL'] = pd.merge(labels, agg_storm_data.drop(skips), on=labels.index)[config["agg_variables"]]
-            if start_str != end_str:
-                if config['output_format'] == 'csv':
-                    labels.to_csv(join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.csv'),
-                                  index_label=False)
-                elif config['output_format'] == 'parquet':
-                    labels.to_parquet(join(config["labels_path"], f'{model_name}_labels_{start_str}_{end_str}.parquet'))
-                else:
-                    raise ValueError(f'File format {config["output_format"]} not found. Please use "parquet" or "csv"')
-                print('Wrote', join(config["labels_path"],
-                                    f'{model_name}_labels_{start_str}_{end_str}.{config["output_format"]}'))
+
+            if config['output_format'] == 'csv':
+                labels.to_csv(join(config["labels_path"], f'{model_name}_labels_{date_str}.csv'),
+                              index_label=False)
+            elif config['output_format'] == 'parquet':
+                labels.to_parquet(join(config["labels_path"], f'{model_name}_labels_{date_str}.parquet'))
             else:
-                if config['output_format'] == 'csv':
-                    labels.to_csv(join(config["labels_path"], f'{model_name}_labels_{start_str}.csv'),
-                                  index_label=False)
-                elif config['output_format'] == 'parquet':
-                    labels.to_parquet(join(config["labels_path"], f'{model_name}_labels_{start_str}.parquet'))
-                else:
-                    raise ValueError(f'File format {config["output_format"]} not found. Please use "parquet" or "csv"')
-                print('Wrote', join(config["labels_path"],
-                                    f'{model_name}_labels_{start_str}.{config["output_format"]}'))
+                raise ValueError(f'File format {config["output_format"]} not found. Please use "parquet" or "csv"')
+            print('Wrote', join(config["labels_path"],
+                                f'{model_name}_labels_{date_str}.{config["output_format"]}'))
 
     print("Completed.")
 
