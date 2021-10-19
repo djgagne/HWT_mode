@@ -151,23 +151,26 @@ def main():
             del models[model_name], neuron_activations[model_name]
 
     if args.train_gmm:
-        print('Begin Training Gaussian Mixture Model')
+        print('Begin Training Gaussian Mixture Model(s)')
         cluster_df = {}
+        GMM = {}
         for model_name, model_config in config["models"].items():
             neuron_activations[model_name] = pd.read_csv(join(config["out_path"],
                                                               f"neuron_activations_{model_name}_train.csv"))
             X = neuron_activations[model_name].loc[:, neuron_activations[model_name].columns.str.contains('neuron')]
-            GMM = GaussianMixture(**config['GMM_kwargs']).fit(X)
-            cluster_df[model_name] = pd.DataFrame(GMM.predict_proba(X),
-                                                  columns=[f"cluster {i}" for i in range(
-                                                        config['GMM_kwargs']['n_components'])])
-            cluster_df[model_name]['label prob'] = cluster_df[model_name].max(axis=1)
-            cluster_df[model_name]['label'] = GMM.predict(X)
-            neuron_activations[model_name].merge(cluster_df[model_name], right_index=True, left_index=True).to_csv(
-                join(config["out_path"], f"GMM_{model_name}_clusters.csv"), index=False)
-            joblib.dump(GMM, join(config["out_path"], f'GMM_{model_name}.mod'))
-            # plot_prob_dist(cluster_df, output_path, cluster_type, n_cluster)
-            # plot_prob_cdf(cluster_df, output_path, cluster_type, n_cluster)
+            for GMM_mod_name, GMM_config in config["GMM_models"].items():
+                GMM[GMM_mod_name] = GaussianMixture(**GMM_config).fit(X)
+                cluster_df[GMM_mod_name] = pd.DataFrame(GMM[GMM_mod_name].predict_proba(X),
+                                                      columns=[f"cluster {i}" for i in range(
+                                                            GMM_config['n_components'])])
+                cluster_df[GMM_mod_name]['label prob'] = cluster_df[GMM_mod_name].max(axis=1)
+                cluster_df[GMM_mod_name]['label'] = GMM[GMM_mod_name].predict(X)
+                neuron_activations[model_name].merge(
+                    cluster_df[GMM_mod_name], right_index=True, left_index=True).to_csv(
+                    join(config["out_path"], f"{model_name}_{GMM_mod_name}_clusters.csv"), index=False)
+                joblib.dump(GMM[GMM_mod_name], join(config["out_path"], f'{model_name}_{GMM_mod_name}.mod'))
+                # plot_prob_dist(cluster_df, output_path, cluster_type, n_cluster)
+                # plot_prob_cdf(cluster_df, output_path, cluster_type, n_cluster)
 
     if args.plot:
         print("Begin plotting")
