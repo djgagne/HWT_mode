@@ -205,17 +205,20 @@ def main():
                         plot_kwargs = None
                     else:
                         plot_kwargs = config["plot_kwargs"][variable_name]
-                    plot_out_path = join(config["out_path"], "plots", f"{model_name}_{mode}")
+                    plot_out_path = join(config["out_path"], "plots")
                     plot_neuron_composites(plot_out_path,
+                                           model_name + "_" + mode,
                                            input_combined[mode],
                                            neuron_activations[model_name][mode].values,
                                            neuron_scores[model_name].loc[mode].values,
                                            variable_name, plot_kwargs=plot_kwargs)
                     plot_saliency_composites(plot_out_path,
+                                             model_name + "_" + mode,
                                              saliency[model_name][mode], neuron_activations[model_name][mode].values,
                                              neuron_scores[model_name].loc[mode].values,
                                              variable_name)
                     plot_top_activations(plot_out_path,
+                                         model_name + "_" + mode,
                                          input_combined[mode], meta_df[mode],
                                          neuron_activations[model_name][mode],
                                          neuron_scores[model_name].loc[mode].values,
@@ -226,7 +229,7 @@ def main():
         print("Additional Plotting...")
         for model_name in config["models"].keys():
             for mode in modes:
-                plot_out_path = join(config["out_path"], "plots", f"{model_name}_{mode}")
+                plot_out_path = join(config["out_path"], "plots")
                 neuron_activations = pd.read_csv(join(config["out_path"], "data",
                                                       f"neuron_activations_{model_name}_{mode}.csv"),
                                                  index_col="index")
