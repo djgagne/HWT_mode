@@ -188,7 +188,7 @@ def main():
                 model_out_path = join(config["out_path"], "models", model_name)
                 models[model_name] = load_conv_net(model_out_path, model_name)
                 neuron_activations[model_name] = {}
-                neuron_scores[model_name] = pd.read_csv(join(config["out_path"], "data",
+                neuron_scores[model_name] = pd.read_csv(join(config["out_path"], "metrics",
                                                              f"neuron_scores_{model_name}.csv"), index_col="mode")
                 saliency[model_name] = {}
             for mode in modes:
