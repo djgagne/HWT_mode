@@ -71,10 +71,9 @@ def main():
         else:
             labels[mode] = out_max[mode]
     del data_input, out_max
-    if not exists(config["out_path"]):
-        makedirs(config["out_path"])
-    scale_values["train"].to_csv(join(config["out_path"], "scale_values.csv"),
-                                 index_label="variable")
+    for folder in ['models', 'plots', 'data', 'metrics']:
+        makedirs(join(config["out_path"], folder), exist_ok=True)
+
     if "get_visible_devices" in dir(tf.config.experimental):
         gpus = tf.config.experimental.get_visible_devices("GPU")
     else:
@@ -92,7 +91,7 @@ def main():
                                              columns=list(config["models"].keys()))
             predictions[mode] = pd.merge(meta_df[mode], predictions[mode], left_index=True, right_index=True)
         for model_name, model_config in config["models"].items():
-            model_out_path = join(config["out_path"], model_name)
+            model_out_path = join(config["out_path"], "models", model_name)
             if not exists(model_out_path):
                 makedirs(model_out_path)
             scale_values["train"].to_csv(join(model_out_path, "scale_values_" + model_name + ".csv"),
@@ -104,12 +103,13 @@ def main():
             for mode in modes:
                 predictions[mode].loc[:, model_name] = models[model_name].predict(input_scaled[mode].values)
         for mode in modes:
-            predictions[mode].to_csv(join(config["out_path"], f"predictions_{mode}.csv"), index_label="index")
+            predictions[mode].to_csv(
+                join(config["out_path"], "metrics", f"predictions_{mode}.csv"), index_label="index")
 
         print("Calculate metrics")
         if config["classifier"]:
             model_scores = classifier_metrics(labels["test"], predictions["test"][list(config["models"].keys())])
-            model_scores.to_csv(join(config["out_path"], "model_test_scores.csv"), index_label="model_name")
+            model_scores.to_csv(join(config["out_path"], "metrics", "model_test_scores.csv"), index_label="model_name")
     if args.interp:
         for model_name, model_config in config["models"].items():
             if model_name not in models.keys():
@@ -125,12 +125,12 @@ def main():
                                                                 left_index=True, right_index=True)
                 neuron_activations[model_name][mode].loc[:, neuron_columns] = models[model_name].output_hidden_layer(
                     input_scaled[mode].values)
-                neuron_activations[model_name][mode].to_csv(join(config["out_path"],
+                neuron_activations[model_name][mode].to_csv(join(config["out_path"], "data",
                                                                  f"neuron_activations_{model_name}_{mode}.csv"),
                                                             index_label="index")
                 saliency[model_name][mode] = models[model_name].saliency(input_scaled[mode])
 
-                saliency[model_name][mode].to_netcdf(join(config["out_path"],
+                saliency[model_name][mode].to_netcdf(join(config["out_path"], "data",
                                                           f"neuron_saliency_{model_name}_{mode}.nc"),
                                                      encoding={"saliency": {"zlib": True,
                                                                             "complevel": 4,
@@ -146,7 +146,7 @@ def main():
                                                                             neuron_columns].values,
                                                                         metric="r")
                 del saliency[model_name][mode]
-            neuron_scores[model_name].to_csv(join(config["out_path"],
+            neuron_scores[model_name].to_csv(join(config["out_path"], "metrics",
                                                   f"neuron_scores_{model_name}.csv"), index_label="mode")
             del models[model_name], neuron_activations[model_name]
 
@@ -155,22 +155,28 @@ def main():
         cluster_df = {}
         GMM = {}
         for model_name, model_config in config["models"].items():
-            neuron_activations[model_name] = pd.read_csv(join(config["out_path"],
-                                                              f"neuron_activations_{model_name}_train.csv"))
-            X = neuron_activations[model_name].loc[:, neuron_activations[model_name].columns.str.contains('neuron')]
-            for GMM_mod_name, GMM_config in config["GMM_models"].items():
-                GMM[GMM_mod_name] = GaussianMixture(**GMM_config).fit(X)
-                cluster_df[GMM_mod_name] = pd.DataFrame(GMM[GMM_mod_name].predict_proba(X),
-                                                      columns=[f"cluster {i}" for i in range(
-                                                            GMM_config['n_components'])])
-                cluster_df[GMM_mod_name]['label prob'] = cluster_df[GMM_mod_name].max(axis=1)
-                cluster_df[GMM_mod_name]['label'] = GMM[GMM_mod_name].predict(X)
-                neuron_activations[model_name].merge(
-                    cluster_df[GMM_mod_name], right_index=True, left_index=True).to_csv(
-                    join(config["out_path"], f"{model_name}_{GMM_mod_name}_clusters.csv"), index=False)
-                joblib.dump(GMM[GMM_mod_name], join(config["out_path"], f'{model_name}_{GMM_mod_name}.mod'))
-                # plot_prob_dist(cluster_df, output_path, cluster_type, n_cluster)
-                # plot_prob_cdf(cluster_df, output_path, cluster_type, n_cluster)
+            for mode in modes:
+                neuron_activations[model_name] = {}
+                neuron_activations[model_name][mode] = pd.read_csv(join(config["out_path"], "data",
+                                                                  f"neuron_activations_{model_name}_{mode}.csv"))
+                X = neuron_activations[model_name][mode].loc[
+                    :, neuron_activations[model_name][mode].columns.str.contains('neuron')]
+                for GMM_mod_name, GMM_config in config["GMM_models"].items():
+                    if mode == "train":
+                        GMM[GMM_mod_name] = GaussianMixture(**GMM_config).fit(X)
+                    cluster_df[GMM_mod_name] = {}
+                    cluster_df[GMM_mod_name][mode] = pd.DataFrame(GMM[GMM_mod_name].predict_proba(X),
+                                                          columns=[f"cluster {i}" for i in range(
+                                                                GMM_config['n_components'])])
+                    cluster_df[GMM_mod_name][mode]['label prob'] = cluster_df[GMM_mod_name][mode].max(axis=1)
+                    cluster_df[GMM_mod_name][mode]['label'] = GMM[GMM_mod_name].predict(X)
+                    neuron_activations[model_name][mode].merge(
+                        cluster_df[GMM_mod_name][mode], right_index=True, left_index=True).to_csv(join(
+                        config["out_path"], "data", f"{model_name}_{GMM_mod_name}_{mode}_clusters.csv"), index=False)
+                    joblib.dump(GMM[GMM_mod_name], join(
+                        config["out_path"], "models", f'{model_name}_{GMM_mod_name}.mod'))
+                    # plot_prob_dist(cluster_df, output_path, cluster_type, n_cluster)
+                    # plot_prob_cdf(cluster_df, output_path, cluster_type, n_cluster)
 
     if args.plot:
         print("Begin plotting")
@@ -179,19 +185,19 @@ def main():
         for model_name, model_config in config["models"].items():
             print(model_name)
             if model_name not in models.keys():
-                model_out_path = join(config["out_path"], model_name)
+                model_out_path = join(config["out_path"], "models", model_name)
                 models[model_name] = load_conv_net(model_out_path, model_name)
                 neuron_activations[model_name] = {}
-                neuron_scores[model_name] = pd.read_csv(join(config["out_path"],
+                neuron_scores[model_name] = pd.read_csv(join(config["out_path"], "data",
                                                              f"neuron_scores_{model_name}.csv"), index_col="mode")
                 saliency[model_name] = {}
             for mode in modes:
                 print(mode)
                 if mode not in neuron_activations[model_name].keys():
-                    neuron_activations[model_name][mode] = pd.read_csv(join(config["out_path"],
-                                                                            f"neuron_activations_{model_name}_{mode}.csv"),
+                    neuron_activations[model_name][mode] = pd.read_csv(join(config["out_path"], "data",
+                                                                       f"neuron_activations_{model_name}_{mode}.csv"),
                                                                        index_col="index")
-                    saliency[model_name][mode] = xr.open_dataarray(join(config["out_path"],
+                    saliency[model_name][mode] = xr.open_dataarray(join(config["out_path"], "data",
                                                                         f"neuron_saliency_{model_name}_{mode}.nc"))
                 for variable_name in config["input_variables"]:
                     print(variable_name)
@@ -199,16 +205,17 @@ def main():
                         plot_kwargs = None
                     else:
                         plot_kwargs = config["plot_kwargs"][variable_name]
-                    plot_neuron_composites(config["out_path"], model_name + "_" + mode,
+                    plot_out_path = join(config["out_path"], "plots", f"{model_name}_{mode}")
+                    plot_neuron_composites(plot_out_path,
                                            input_combined[mode],
                                            neuron_activations[model_name][mode].values,
                                            neuron_scores[model_name].loc[mode].values,
                                            variable_name, plot_kwargs=plot_kwargs)
-                    plot_saliency_composites(config["out_path"], model_name + "_" + mode,
+                    plot_saliency_composites(plot_out_path,
                                              saliency[model_name][mode], neuron_activations[model_name][mode].values,
                                              neuron_scores[model_name].loc[mode].values,
                                              variable_name)
-                    plot_top_activations(config["out_path"], model_name + "_" + mode,
+                    plot_top_activations(plot_out_path,
                                          input_combined[mode], meta_df[mode],
                                          neuron_activations[model_name][mode],
                                          neuron_scores[model_name].loc[mode].values,
@@ -219,14 +226,15 @@ def main():
         print("Additional Plotting...")
         for model_name in config["models"].keys():
             for mode in modes:
-                neuron_activations = pd.read_csv(join(config["out_path"],
+                plot_out_path = join(config["out_path"], "plots", f"{model_name}_{mode}")
+                neuron_activations = pd.read_csv(join(config["out_path"], "data",
                                                       f"neuron_activations_{model_name}_{mode}.csv"),
                                                  index_col="index")
-                cape_shear_modes(neuron_activations, config["out_path"], config["data_path"],
+                cape_shear_modes(neuron_activations, plot_out_path, config["data_path"],
                                  model_name, mode, num_storms=5000)
-                spatial_neuron_activations(neuron_activations, config["out_path"], model_name,
+                spatial_neuron_activations(neuron_activations, plot_out_path, model_name,
                                            mode, quant_thresh=0.95)
-                diurnal_neuron_activations(neuron_activations, config["out_path"], model_name,
+                diurnal_neuron_activations(neuron_activations, plot_out_path, model_name,
                                            mode, quant_thresh=0.95)
     return
 
