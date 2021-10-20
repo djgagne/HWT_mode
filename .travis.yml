@@ -14,6 +14,6 @@ install:
   - source activate hwtmode
 script:
   - python -m pytest .
-  - python -u train_mode_cnn.py config/ws_mode_cnn_train_small.yml -t -i -p
+  - python -u train_mode_cnn.py config/ws_mode_cnn_train_small.yml -t -i -u -p -p2
 notifications:
   email: true
