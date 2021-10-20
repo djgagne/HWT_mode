@@ -5,6 +5,7 @@ from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_s
     plot_top_activations, cape_shear_modes, spatial_neuron_activations, \
     diurnal_neuron_activations, plot_prob_dist, plot_prob_cdf
 from sklearn.mixture import GaussianMixture
+from sklearn.preprocessing import MinMaxScaler
 import argparse
 import yaml
 from os.path import exists, join
@@ -113,7 +114,7 @@ def main():
     if args.interp:
         for model_name, model_config in config["models"].items():
             if model_name not in models.keys():
-                model_out_path = join(config["out_path"], model_name)
+                model_out_path = join(config["out_path"], "models", model_name)
                 models[model_name] = load_conv_net(model_out_path, model_name)
             neuron_columns = [f"neuron_{n:03d}" for n in range(models[model_name].dense_neurons)]
             neuron_activations[model_name] = {}
@@ -158,7 +159,7 @@ def main():
             for mode in modes:
                 neuron_activations[model_name] = {}
                 neuron_activations[model_name][mode] = pd.read_csv(join(config["out_path"], "data",
-                                                                  f"neuron_activations_{model_name}_{mode}.csv"))
+                                                                        f"neuron_activations_{model_name}_{mode}.csv"))
                 X = neuron_activations[model_name][mode].loc[
                     :, neuron_activations[model_name][mode].columns.str.contains('neuron')]
                 for GMM_mod_name, GMM_config in config["GMM_models"].items():
@@ -166,8 +167,8 @@ def main():
                         GMM[GMM_mod_name] = GaussianMixture(**GMM_config).fit(X)
                     cluster_df[GMM_mod_name] = {}
                     cluster_df[GMM_mod_name][mode] = pd.DataFrame(GMM[GMM_mod_name].predict_proba(X),
-                                                          columns=[f"cluster {i}" for i in range(
-                                                                GMM_config['n_components'])])
+                                                                  columns=[f"cluster {i}" for i in range(
+                                                                      GMM_config['n_components'])])
                     cluster_df[GMM_mod_name][mode]['label prob'] = cluster_df[GMM_mod_name][mode].max(axis=1)
                     cluster_df[GMM_mod_name][mode]['label'] = GMM[GMM_mod_name].predict(X)
                     neuron_activations[model_name][mode].merge(
@@ -175,8 +176,6 @@ def main():
                         config["out_path"], "data", f"{model_name}_{GMM_mod_name}_{mode}_clusters.csv"), index=False)
                     joblib.dump(GMM[GMM_mod_name], join(
                         config["out_path"], "models", f'{model_name}_{GMM_mod_name}.mod'))
-                    # plot_prob_dist(cluster_df, output_path, cluster_type, n_cluster)
-                    # plot_prob_cdf(cluster_df, output_path, cluster_type, n_cluster)
 
     if args.plot:
         print("Begin plotting")
@@ -195,7 +194,7 @@ def main():
                 print(mode)
                 if mode not in neuron_activations[model_name].keys():
                     neuron_activations[model_name][mode] = pd.read_csv(join(config["out_path"], "data",
-                                                                       f"neuron_activations_{model_name}_{mode}.csv"),
+                                                                            f"neuron_activations_{model_name}_{mode}.csv"),
                                                                        index_col="index")
                     saliency[model_name][mode] = xr.open_dataarray(join(config["out_path"], "data",
                                                                         f"neuron_saliency_{model_name}_{mode}.nc"))
@@ -228,17 +227,26 @@ def main():
     if args.plot2:
         print("Additional Plotting...")
         for model_name in config["models"].keys():
-            for mode in modes:
+            for mode in ["val"]:
                 plot_out_path = join(config["out_path"], "plots")
                 neuron_activations = pd.read_csv(join(config["out_path"], "data",
                                                       f"neuron_activations_{model_name}_{mode}.csv"),
                                                  index_col="index")
                 cape_shear_modes(neuron_activations, plot_out_path, config["data_path"],
-                                 model_name, mode, num_storms=5000)
-                spatial_neuron_activations(neuron_activations, plot_out_path, model_name,
-                                           mode, quant_thresh=0.95)
-                diurnal_neuron_activations(neuron_activations, plot_out_path, model_name,
-                                           mode, quant_thresh=0.95)
+                                 model_name, mode, gmm_name=None, cluster=False, num_storms=5000)
+                spatial_neuron_activations(neuron_activations, plot_out_path, mode, model_name)
+                diurnal_neuron_activations(neuron_activations, plot_out_path, mode, model_name)
+                for GMM_mod_name, GMM_config in config["GMM_models"].items():
+                    cluster_df = pd.read_csv(join(
+                        config["out_path"], "data", f"{model_name}_{GMM_mod_name}_{mode}_clusters.csv"))
+                    plot_prob_dist(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
+                    plot_prob_cdf(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
+                    cape_shear_modes(cluster_df, plot_out_path, config["data_path"], mode, model_name,
+                                     gmm_name=GMM_mod_name, cluster=True, num_storms=5000)
+                    spatial_neuron_activations(cluster_df, plot_out_path, mode, model_name,
+                                               gmm_name=GMM_mod_name, cluster=True)
+                    diurnal_neuron_activations(cluster_df, plot_out_path, mode, model_name,
+                                               gmm_name=GMM_mod_name, cluster=True)
     return
 
 
