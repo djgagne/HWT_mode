@@ -139,7 +139,8 @@ def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activatio
         plt.close()
     return
 
-def cape_shear_modes(neuron_activations, output_path, data_path, model_name, mode, num_storms=5000):
+def cape_shear_modes(neuron_activations, output_path, data_path, mode, model_name,
+                     gmm_name=None, cluster=False, num_storms=5000):
     """
     Match specified number of top storms of each neuron, fetch storm patch,
     and then plot bivariate density of each nueron in CAPE/Shear space.
@@ -153,36 +154,45 @@ def cape_shear_modes(neuron_activations, output_path, data_path, model_name, mod
 
     Returns:
     """
-    df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Activation', 'Neuron'])
-    cols = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
+    if cluster:
+        col_type = 'cluster'
+    else:
+        col_type = 'neuron'
+    if gmm_name is not None:
+        file_name = f'CAPE_Shear_{model_name}_{gmm_name}_{mode}.png'
+    else:
+        file_name = f'CAPE_Shear_{model_name}_{mode}.png'
+    df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Value', col_type.capitalize()])
+    cols = list(neuron_activations.columns[neuron_activations.columns.str.contains(col_type)])
     csv_path = data_path.rstrip('/')[:-2] + 'csv'
     
     dates = sorted(set(neuron_activations['run_date'].astype('datetime64[ns]')))
     file_strings = [join(csv_path, f'track_step_NCARSTORM_d01_{x.strftime("%Y%m%d")}-0000.csv') for x in dates]
     ddf = dd.read_csv(file_strings).compute()
     
-    for neuron in cols:
-        sub = neuron_activations.sort_values(by=[neuron], ascending=False).iloc[:num_storms, :]
-        activation = sub[neuron].values
+    for col in cols:
+        sub = neuron_activations.sort_values(by=[col], ascending=False).iloc[:num_storms, :]
+        activation = sub[col].values
         x = ddf.iloc[sub.index, :]
         cape = x['MLCAPE-potential_max'].values
         shear = np.sqrt(x['USHR6-potential_mean']**2 + x['USHR6-potential_mean']**2).values
-        df = df.append(pd.DataFrame(zip(cape, shear, activation, [neuron] * num_storms), columns=df.columns))
+        df = df.append(pd.DataFrame(zip(cape, shear, activation, [col] * num_storms), columns=df.columns))
         
     plt.figure(figsize=(20, 16))
     sns.set(font_scale=1.5)
     colors = sns.color_palette("deep", len(cols))
 
-    sns.scatterplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', alpha=0.5, size='Activation', sizes=(1, 200),
-                    palette=colors, edgecolors='k', linewidth=1)
-    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue='Neuron', fill=False, alpha=1, thresh=0.4, levels=3,
+    sns.scatterplot(data=df, x='CAPE', y='6km Shear', hue=col_type.capitalize(), alpha=0.5, size='Value',
+                    sizes=(1, 200), palette=colors, edgecolors='k', linewidth=1)
+    sns.kdeplot(data=df, x='CAPE', y='6km Shear', hue=col_type.capitalize(), fill=False, alpha=1, thresh=0.4, levels=3,
                 palette=colors, clip=(0, 6000), linewidths=8, legend=False)
-    plt.title(f'Storm Activations for Top {num_storms} Storms ({mode})')
-    plt.savefig(join(output_path, f'CAPE_Shear_{model_name}_{mode}.png'), bbox_inches='tight')
+    plt.title(f'{col_type.capitalize()} for Top {num_storms} Storms ({mode})')
+    plt.savefig(join(output_path, file_name), dpi=300, bbox_inches='tight')
     
     return
 
-def spatial_neuron_activations(neuron_activations, output_path, model_name, mode, quant_thresh=0.9):
+def spatial_neuron_activations(neuron_activations, output_path, mode, model_name,
+                               gmm_name=None, cluster=False, quant_thresh=0.99):
     """
     Plot spatial distribution of top activated storms for each neuron
     Args:
@@ -194,6 +204,14 @@ def spatial_neuron_activations(neuron_activations, output_path, model_name, mode
 
     Returns:
     """
+    if cluster:
+        col_type = 'cluster'
+    else:
+        col_type = 'neuron'
+    if gmm_name is not None:
+        file_name = f'Spatial_activations_{model_name}_{gmm_name}_{mode}.png'
+    else:
+        file_name = f'Spatial_activations_{model_name}_{mode}.png'
     fig = plt.figure(figsize=(20, 16))
     lcc = ccrs.LambertConformal(central_longitude=-97.5, standard_parallels=(38.5, 38.5))
     ax = fig.add_subplot(1, 1, 1, projection=lcc)
@@ -205,23 +223,24 @@ def spatial_neuron_activations(neuron_activations, output_path, model_name, mode
     ax.add_feature(cfeature.LAKES, alpha=0.5)
     ax.add_feature(cfeature.STATES)
 
-    neurons = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
-    colors = sns.color_palette("deep", len(neurons))
+    columns = list(neuron_activations.columns[neuron_activations.columns.str.contains(col_type)])
+    colors = sns.color_palette("deep", len(columns))
 
-    for i, neuron in enumerate(neurons):
-        data = neuron_activations[neuron_activations[neuron] > neuron_activations[neuron].quantile(quant_thresh)]
-        var = data[neuron]
+    for i, col in enumerate(columns):
+        data = neuron_activations[neuron_activations[col] > neuron_activations[col].quantile(quant_thresh)]
+        var = data[col]
         plt.scatter(data['centroid_lon'], data['centroid_lat'], transform=ccrs.PlateCarree(), label=None,
                     color=colors[i], alpha=0.25, s=2.5)
         sns.kdeplot(data['centroid_lon'], data['centroid_lat'], data=var, levels=3, transform=ccrs.PlateCarree(),
-                    linewidths=5, thresh=0, color=colors[i], linestyles='-',
-                    label=f'Neuron {i}', cummulative=True)
+                    linewidths=5, thresh=0, color=colors[i], linestyles='--',
+                    label=f'{col.capitalize()} {i}')
         plt.legend(prop={'size': 16})
     plt.title(f'Storm Activations Above {quant_thresh} Quantile - {mode}', fontsize=30)
-    plt.savefig(join(output_path, f'Spatial_activations_{model_name}_{mode}.png'), bbox_inches='tight')
+    plt.savefig(join(output_path, file_name), dpi=300, bbox_inches='tight')
 
 
-def diurnal_neuron_activations(neuron_activations, output_path, model_name, mode, quant_thresh=0.9):
+def diurnal_neuron_activations(neuron_activations, output_path, mode, model_name,
+                               gmm_name=None, cluster=False, quant_thresh=0.99):
     """
     Plot diurnal distribution of each neuron
     Args:
@@ -233,23 +252,31 @@ def diurnal_neuron_activations(neuron_activations, output_path, model_name, mode
 
     Returns:
     """
+    if cluster:
+        col_type = 'cluster'
+    else:
+        col_type = 'neuron'
+    if gmm_name is not None:
+        file_name = f'Diurnal_activations_{model_name}_{gmm_name}_{mode}.png'
+    else:
+        file_name = f'Diurnal_activations_{model_name}_{mode}.png'
     fig, ax = plt.subplots(figsize=(20, 8))
 
     df = neuron_activations.copy()
     df.time = df.time.astype('datetime64[ns]').reset_index(drop=True) - pd.Timedelta(6, 'H')
-    neurons = list(neuron_activations.columns[neuron_activations.columns.str.contains('neuron')])
-    colors = sns.color_palette("deep", len(neurons))
+    columns = list(neuron_activations.columns[neuron_activations.columns.str.contains(col_type)])
+    colors = sns.color_palette("deep", len(columns))
 
-    for i, neuron in enumerate(neurons):
-        data = df[df[neuron] > df[neuron].quantile(quant_thresh)].groupby(df['time'].dt.hour)[neuron].count()
-        plt.plot(data, linewidth=4, alpha=1, label=neuron, color=colors[i])
+    for i, col in enumerate(columns):
+        data = df[df[col] > df[col].quantile(quant_thresh)].groupby(df['time'].dt.hour)[col].count()
+        plt.plot(data, linewidth=4, alpha=1, label=col.capitalize(), color=colors[i])
     plt.legend(prop={'size': 16})
     plt.title(f'Diurnal Distribution of Storm Activations Above {quant_thresh} Quantile - {mode}', fontsize=30)
     ax.set_ylabel('Number of Storms', fontsize=20)
     ax.set_xlabel('UTC - 6', fontsize=20)
     ax.xaxis.set_tick_params(labelsize=16)
     ax.yaxis.set_tick_params(labelsize=16)
-    plt.savefig(join(output_path, f'Diurnal_activations_{model_name}_{mode}.png'), bbox_inches='tight')
+    plt.savefig(join(output_path, file_name), dpi=300, bbox_inches='tight')
 
 
 def plot_cluster_dist(data, output_path, cluster_type, n_cluster):
@@ -265,7 +292,7 @@ def plot_cluster_dist(data, output_path, cluster_type, n_cluster):
     """
 
     plt.figure(figsize=(12, 6))
-    counts = Counter(data['cluster'])
+    counts = Counter(data['label'])
     percent_counts = [x / sum(counts.values()) * 100 for x in counts.values()]
     sns.barplot(list(counts.keys()), percent_counts, palette='deep')
     plt.xlabel('Cluster', fontsize=14)
@@ -287,11 +314,10 @@ def plot_prob_dist(data, output_path, cluster_type, n_cluster):
     """
 
     plt.figure(figsize=(12, 6))
-    sns.displot(data=data, x='cluster_prob', hue='cluster', multiple='stack', palette='dark', kind='kde', aspect=2)
+    sns.displot(data=data, x='label prob', hue='label', multiple='stack', palette='dark', kind='kde', aspect=2)
     plt.xlabel('Cluster Probability', fontsize=14)
     plt.ylabel('Density', fontsize=14)
     plt.savefig(join(output_path, f'{cluster_type}_{n_cluster}_prob_dist.png'), bbox_inches='tight')
-
 
 
 def plot_prob_cdf(data, output_path, cluster_type, n_cluster):
@@ -305,12 +331,11 @@ def plot_prob_cdf(data, output_path, cluster_type, n_cluster):
 
     Returns:
     """
-    plt.figure(figsize=(12, 6))
-    kwargs = {'cumulative': True}
-    sns.distplot(data['cluster_prob'], hist_kws=kwargs, kde_kws=kwargs)
+    sns.displot(data['label prob'], kind='ecdf', height=12)
     plt.xlabel('Cluster Probability', fontsize=14)
     plt.ylabel('Density', fontsize=14)
     plt.savefig(join(output_path, f'{cluster_type}_{n_cluster}_prob_cdf.png'), bbox_inches='tight')
+
 
 def plot_storm_clusters(patch_data_path, output_path, cluster_data, cluster_method, seed,
                         n_storms=25, prob_type='highest'):

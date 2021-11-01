@@ -1,15 +1,12 @@
 #!/bin/bash -l
-#SBATCH --job-name=HWT_train
-#SBATCH --account=NAML0001
-#SBATCH --ntasks=16
-#SBATCH --cpus-per-task=1
-#SBATCH --time=06:00:00
-#SBATCH --partition=dav
-#SBATCH --gres=gpu:v100:1
-#SBATCH --mem=256G
-#SBATCH --output=train_mode_wwind.out
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=cbecker@ucar.edu
-module load gnu/8.3.0 openmpi/3.1.4 python/3.7.5 cuda/10.1
-conda activate smode
-python -u train_mode_cnn.py config/refl_32_patch.yml -t -i
+#PBS -N mode_cnn
+#PBS -A NAML0001
+#PBS -l walltime=01:30:00
+#PBS -j oe
+#PBS -o train_mode.out
+#PBS -q casper
+#PBS -l select=1:ncpus=8:ngpus=1:mem=64GB -l gpu_type=v100
+
+module load cuda/11 cudnn
+conda activate hwt
+python -u train_mode_cnn.py config/train_cnn_gmm.yml -t -i -u -p -p2
