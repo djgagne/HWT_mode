@@ -175,7 +175,7 @@ def cape_shear_modes(neuron_activations, output_path, data_path, mode, model_nam
         activation = sub[col].values
         x = ddf.iloc[sub.index, :]
         cape = x['MLCAPE-potential_max'].values
-        shear = np.sqrt(x['USHR6-potential_mean']**2 + x['USHR6-potential_mean']**2).values
+        shear = np.sqrt(x['USHR6-potential_mean']**2 + x['VSHR6-potential_mean']**2).values
         df = df.append(pd.DataFrame(zip(cape, shear, activation, [col] * num_storms), columns=df.columns))
         
     plt.figure(figsize=(20, 16))
