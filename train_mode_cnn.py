@@ -1,3 +1,5 @@
+import tensorflow_core.python
+
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
@@ -5,7 +7,6 @@ from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_s
     plot_top_activations, cape_shear_modes, spatial_neuron_activations, \
     diurnal_neuron_activations, plot_prob_dist, plot_prob_cdf
 from sklearn.mixture import GaussianMixture
-from sklearn.preprocessing import MinMaxScaler
 import argparse
 import yaml
 from os.path import exists, join
@@ -15,6 +16,7 @@ import tensorflow as tf
 import xarray as xr
 import joblib
 import pandas as pd
+import random
 
 
 def main():
@@ -31,6 +33,9 @@ def main():
         raise FileNotFoundError(args.config + " not found.")
     with open(args.config, "r") as config_file:
         config = yaml.load(config_file, Loader=yaml.Loader)
+    np.random.seed(config["random_seed"])
+    random.seed(config["random_seed"])
+    tf.random.set_seed(config["random_seed"])
     # Load training data
     print(f"Loading training data period: {config['train_start_date']} to {config['train_end_date']}")
     data_input = {}
