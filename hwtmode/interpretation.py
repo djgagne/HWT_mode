@@ -233,7 +233,7 @@ def spatial_neuron_activations(neuron_activations, output_path, mode, model_name
                     color=colors[i], alpha=0.25, s=2.5)
         sns.kdeplot(data['centroid_lon'], data['centroid_lat'], data=var, levels=3, transform=ccrs.PlateCarree(),
                     linewidths=5, thresh=0, color=colors[i], linestyles='--',
-                    label=f'{col.capitalize()} {i}')
+                    label=f'{col.capitalize()}')
         plt.legend(prop={'size': 16})
     plt.title(f'Storm Activations Above {quant_thresh} Quantile - {mode}', fontsize=30)
     plt.savefig(join(output_path, file_name), dpi=300, bbox_inches='tight')
