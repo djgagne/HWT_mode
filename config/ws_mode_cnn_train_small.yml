@@ -14,6 +14,8 @@ test_end_date: "2011-04-28"
 out_path: "model_cnn_20200416/"
 classifier: 1
 classifier_threshold: 50
+random_seed: &seed 88
+
 plot_kwargs:
   REFL_1KM_AGL_curr:
     vmin: 0
@@ -58,4 +60,5 @@ GMM_models:
     init_params: 'kmeans'
     reg_covar: 0.000001
     verbose: 1
+    random_state: *seed
 
