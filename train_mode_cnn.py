@@ -1,11 +1,10 @@
-import tensorflow_core.python
-
+import os
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
 from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites, \
     plot_top_activations, cape_shear_modes, spatial_neuron_activations, \
-    diurnal_neuron_activations, plot_prob_dist, plot_prob_cdf
+    diurnal_neuron_activations, plot_prob_dist, plot_prob_cdf, plot_storm_clusters
 from sklearn.mixture import GaussianMixture
 import argparse
 import yaml
@@ -134,14 +133,14 @@ def main():
                 neuron_activations[model_name][mode].to_csv(join(config["out_path"], "data",
                                                                  f"neuron_activations_{model_name}_{mode}.csv"),
                                                             index_label="index")
-                saliency[model_name][mode] = models[model_name].saliency(input_scaled[mode])
-
-                saliency[model_name][mode].to_netcdf(join(config["out_path"], "data",
-                                                          f"neuron_saliency_{model_name}_{mode}.nc"),
-                                                     encoding={"saliency": {"zlib": True,
-                                                                            "complevel": 4,
-                                                                            "shuffle": True,
-                                                                            "least_significant_digit": 3}})
+                # saliency[model_name][mode] = models[model_name].saliency(input_scaled[mode])
+                #
+                # saliency[model_name][mode].to_netcdf(join(config["out_path"], "data",
+                #                                           f"neuron_saliency_{model_name}_{mode}.nc"),
+                #                                      encoding={"saliency": {"zlib": True,
+                #                                                             "complevel": 4,
+                #                                                             "shuffle": True,
+                #                                                             "least_significant_digit": 3}})
                 if config["classifier"]:
                     neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
                                                                         neuron_activations[model_name][mode][
@@ -151,7 +150,7 @@ def main():
                                                                         neuron_activations[model_name][mode][
                                                                             neuron_columns].values,
                                                                         metric="r")
-                del saliency[model_name][mode]
+                # del saliency[model_name][mode]
             neuron_scores[model_name].to_csv(join(config["out_path"], "metrics",
                                                   f"neuron_scores_{model_name}.csv"), index_label="mode")
             del models[model_name], neuron_activations[model_name]
@@ -233,25 +232,27 @@ def main():
         print("Additional Plotting...")
         for model_name in config["models"].keys():
             for mode in ["val"]:
-                plot_out_path = join(config["out_path"], "plots")
-                neuron_activations = pd.read_csv(join(config["out_path"], "data",
-                                                      f"neuron_activations_{model_name}_{mode}.csv"),
-                                                 index_col="index")
-                cape_shear_modes(neuron_activations, plot_out_path, config["data_path"],
-                                 model_name, mode, gmm_name=None, cluster=False, num_storms=5000)
-                spatial_neuron_activations(neuron_activations, plot_out_path, mode, model_name)
-                diurnal_neuron_activations(neuron_activations, plot_out_path, mode, model_name)
                 for GMM_mod_name, GMM_config in config["GMM_models"].items():
+                    plot_out_path = join(config["out_path"], "plots", GMM_mod_name)
+                    if not exists(plot_out_path):
+                        os.mkdir(plot_out_path)
                     cluster_df = pd.read_csv(join(
                         config["out_path"], "data", f"{model_name}_{GMM_mod_name}_{mode}_clusters.csv"))
                     plot_prob_dist(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
                     plot_prob_cdf(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
                     cape_shear_modes(cluster_df, plot_out_path, config["data_path"], mode, model_name,
-                                     gmm_name=GMM_mod_name, cluster=True, num_storms=5000)
+                                     gmm_name=GMM_mod_name, cluster=True, num_storms=1000)
                     spatial_neuron_activations(cluster_df, plot_out_path, mode, model_name,
                                                gmm_name=GMM_mod_name, cluster=True)
                     diurnal_neuron_activations(cluster_df, plot_out_path, mode, model_name,
                                                gmm_name=GMM_mod_name, cluster=True)
+                    for prob_type in ['highest', 'lowest']:
+                        plot_storm_clusters(config['data_path'], plot_out_path, cluster_df,
+                                            n_storms=25,
+                                            patch_radius=config["patch_radius"],
+                                            prob_type=prob_type,
+                                            seed=config["random_seed"])
+
     return
 
 
