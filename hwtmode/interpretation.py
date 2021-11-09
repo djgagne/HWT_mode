@@ -337,57 +337,54 @@ def plot_prob_cdf(data, output_path, cluster_type, n_cluster):
     plt.savefig(join(output_path, f'{cluster_type}_{n_cluster}_prob_cdf.png'), bbox_inches='tight')
 
 
-def plot_storm_clusters(patch_data_path, output_path, cluster_data, cluster_method, seed,
-                        n_storms=25, prob_type='highest'):
+def plot_storm_clusters(patch_data_path, output_path, cluster_data, n_storms=25, patch_radius=48, prob_type='highest',
+                        seed=88):
     """
     Args:
         patch_data_path: Path where storm patches are located.
         output_path: Output path to save file.
         cluster_data: Neuron activation dataframe with cluster labels
-        cluster_method: Cluster algorithm used for file naming
-        seed: Random seed used for sampling.
         n_storms: Number of storms to plot per cluster (should be an even square - 4, 9. 16, 25, ...)
         prob_type: Probability of storms to plot (only valid for 'GMM'). Should be 'highest', 'lowest', or 'random'
-
+        seed: Random seed used for sampling.
     Returns:
     """
-
     ms_mph = 2.237
     file_dates = sorted(pd.to_datetime(cluster_data['run_date'].unique()))
     file_paths = sorted(
         [join(patch_data_path, f'NCARSTORM_{x.strftime("%Y%m%d")}-0000_d01_model_patches.nc') for x in file_dates])
-    ds = xr.open_mfdataset(file_paths, combine='nested', concat_dim='p')
-    wind_slice = (slice(8, None, 12), slice(8, None, 12))
-    x_mesh, y_mesh = np.meshgrid(range(len(ds['row'])), range(len(ds['col'])))
+    ds = xr.open_mfdataset(file_paths, combine='nested', concat_dim='p', parallel=True)
 
-    n_clusters = cluster_data['cluster'].nunique()
+    n_clusters = cluster_data['label'].nunique()
 
     for cluster in range(n_clusters):
-
-        if cluster_method == 'Spectral':
-            sub = cluster_data[cluster_data['cluster'] == cluster].sample(n_storms, random_state=seed)
-        elif cluster_method == 'GMM':
-            if prob_type == 'highest':
-                sub = cluster_data[cluster_data['cluster'] == cluster].sort_values(['cluster_prob'], ascending=False)[:n_storms]
-            elif prob_type == 'lowest':
-                sub = cluster_data[cluster_data['cluster'] == cluster].sort_values(['cluster_prob'], ascending=True)[:n_storms]
-            elif prob_type == 'random':
-                sub = cluster_data[cluster_data['cluster'] == cluster].sample(n_storms, random_state=seed)
+        print(f"Plotting sample storms with {prob_type} probabilities for cluster {cluster}.")
+        if prob_type == 'highest':
+            sub = cluster_data[cluster_data['label'] == cluster].sort_values(['label prob'], ascending=False)[:n_storms]
+        elif prob_type == 'lowest':
+            sub = cluster_data[cluster_data['label'] == cluster].sort_values(['label prob'], ascending=True)[:n_storms]
+        elif prob_type == 'random':
+            sub = cluster_data[cluster_data['label'] == cluster].sample(n_storms, random_state=seed)
 
         storm_idxs = sub.index.values
-        x = ds[['REFL_COM_curr', 'U10_curr', 'V10_curr']].isel(p=storm_idxs)
+        patch_center = int(ds.row.size / 2)
+        x = ds[['REFL_COM_curr', 'U10_curr', 'V10_curr', 'masks']].isel(p=storm_idxs, row=slice(patch_center - patch_radius, patch_center + patch_radius),
+                                                               col=slice(patch_center - patch_radius, patch_center + patch_radius)).load()
+        wind_step = int(np.ceil(np.sqrt(x.row.size)))
+        wind_slice = (slice(wind_step, None, wind_step), slice(wind_step, None, wind_step))
+        x_mesh, y_mesh = np.meshgrid(range(len(x['row'])), range(len(x['col'])))
         fig, axes = plt.subplots(int(np.sqrt(n_storms)), int(np.sqrt(n_storms)), figsize=(16, 16), sharex=True, sharey=True)
         plt.subplots_adjust(wspace=0.03, hspace=0.03)
 
         for i, ax in enumerate(axes.ravel()):
 
-            im = ax.contourf(x['REFL_COM_curr'][i], levels=np.linspace(0, 80, 51), vmin=0, vmax=80, cmap='gist_ncar')
+            im = ax.contourf(x['REFL_COM_curr'][i], levels=np.linspace(0, 80, 25), vmin=0, vmax=80, cmap='gist_ncar')
+            ax.contour(x['masks'][i], colors='k')
             ax.barbs(x_mesh[wind_slice], y_mesh[wind_slice], x['U10_curr'][i][wind_slice] * ms_mph,
                      x['V10_curr'][i][wind_slice] * ms_mph, color='grey', pivot='middle', length=6)
 
-            if cluster_method == 'GMM':
-                ax.text(3, 4, f"P = {np.round(sub.iloc[i, :]['cluster_prob'], 4)}", style='italic', fontsize=12,
-                        bbox={'facecolor': 'lightgrey', 'alpha': 0.8, 'pad': 10})
+            ax.text(3, 4, f"P = {np.round(sub.iloc[i, :]['label prob'], 4)}", style='italic', fontsize=12,
+                    bbox={'facecolor': 'lightgrey', 'alpha': 0.8, 'pad': 10})
 
             plt.subplots_adjust(right=0.975)
             cbar_ax = fig.add_axes([1, 0.125, 0.025, 0.83])
@@ -397,10 +394,9 @@ def plot_storm_clusters(patch_data_path, output_path, cluster_data, cluster_meth
             ax.set_yticks([])
             ax.set_yticks([], minor=True)
 
-        plt.suptitle(f'Storm Classifications With {cluster_method} Clustering: Cluster {cluster}', fontsize=24)
+        plt.suptitle(f'Storm Samples - Cluster {cluster}', fontsize=24)
         plt.subplots_adjust(top=0.95)
-
-        plt.savefig(join(output_path, f'{cluster_method}_{n_clusters}_{cluster}_patches.png'), bbox_inches='tight')
+        plt.savefig(join(output_path, f'cluster_{cluster}_{prob_type}_prob_samples.png'), dpi=300, bbox_inches='tight')
 
 
 def plot_ensemble_neighborhood(beg, end, model_list, label_path, model_grid_path, out_path, file_format='pkl',
