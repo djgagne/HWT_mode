@@ -133,14 +133,14 @@ def main():
                 neuron_activations[model_name][mode].to_csv(join(config["out_path"], "data",
                                                                  f"neuron_activations_{model_name}_{mode}.csv"),
                                                             index_label="index")
-                # saliency[model_name][mode] = models[model_name].saliency(input_scaled[mode])
-                #
-                # saliency[model_name][mode].to_netcdf(join(config["out_path"], "data",
-                #                                           f"neuron_saliency_{model_name}_{mode}.nc"),
-                #                                      encoding={"saliency": {"zlib": True,
-                #                                                             "complevel": 4,
-                #                                                             "shuffle": True,
-                #                                                             "least_significant_digit": 3}})
+                saliency[model_name][mode] = models[model_name].saliency(input_scaled[mode])
+
+                saliency[model_name][mode].to_netcdf(join(config["out_path"], "data",
+                                                          f"neuron_saliency_{model_name}_{mode}.nc"),
+                                                     encoding={"saliency": {"zlib": True,
+                                                                            "complevel": 4,
+                                                                            "shuffle": True,
+                                                                            "least_significant_digit": 3}})
                 if config["classifier"]:
                     neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
                                                                         neuron_activations[model_name][mode][
@@ -150,7 +150,7 @@ def main():
                                                                         neuron_activations[model_name][mode][
                                                                             neuron_columns].values,
                                                                         metric="r")
-                # del saliency[model_name][mode]
+                del saliency[model_name][mode]
             neuron_scores[model_name].to_csv(join(config["out_path"], "metrics",
                                                   f"neuron_scores_{model_name}.csv"), index_label="mode")
             del models[model_name], neuron_activations[model_name]
@@ -233,7 +233,7 @@ def main():
         for model_name in config["models"].keys():
             for mode in ["val"]:
                 for GMM_mod_name, GMM_config in config["GMM_models"].items():
-                    plot_out_path = join(config["out_path"], "plots", GMM_mod_name)
+                    plot_out_path = join(config["out_path"], "plots", model_name, GMM_mod_name)
                     if not exists(plot_out_path):
                         os.mkdir(plot_out_path)
                     cluster_df = pd.read_csv(join(
