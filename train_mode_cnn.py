@@ -78,7 +78,8 @@ def main():
     del data_input, out_max
     for folder in ['models', 'plots', 'data', 'metrics']:
         makedirs(join(config["out_path"], folder), exist_ok=True)
-
+    with open(join(config['out_path'], 'full_config.yml'), "w") as config_file:
+        yaml.dump(config, config_file)
     if "get_visible_devices" in dir(tf.config.experimental):
         gpus = tf.config.experimental.get_visible_devices("GPU")
     else:
@@ -235,7 +236,7 @@ def main():
                 for GMM_mod_name, GMM_config in config["GMM_models"].items():
                     plot_out_path = join(config["out_path"], "plots", model_name, GMM_mod_name)
                     if not exists(plot_out_path):
-                        os.mkdir(plot_out_path)
+                        makedirs(plot_out_path, exist_ok=True)
                     cluster_df = pd.read_csv(join(
                         config["out_path"], "data", f"{model_name}_{GMM_mod_name}_{mode}_clusters.csv"))
                     plot_prob_dist(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
