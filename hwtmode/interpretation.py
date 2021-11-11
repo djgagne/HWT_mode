@@ -377,8 +377,10 @@ def plot_storm_clusters(patch_data_path, output_path, cluster_data, n_storms=25,
         plt.subplots_adjust(wspace=0.03, hspace=0.03)
 
         for i, ax in enumerate(axes.ravel()):
-
-            im = ax.contourf(x['REFL_COM_curr'][i], levels=np.linspace(0, 80, 25), vmin=0, vmax=80, cmap='gist_ncar')
+            try:
+                im = ax.contourf(x['REFL_COM_curr'][i], levels=np.linspace(0, 80, 25), vmin=0, vmax=80, cmap='gist_ncar')
+            except:
+                continue
             ax.contour(x['masks'][i], colors='k')
             ax.barbs(x_mesh[wind_slice], y_mesh[wind_slice], x['U10_curr'][i][wind_slice] * ms_mph,
                      x['V10_curr'][i][wind_slice] * ms_mph, color='grey', pivot='middle', length=6)
