@@ -27,7 +27,7 @@ jobs:
       - name: Run pytest
         run: |
           conda activate hwtmode
-          - python -m pytest .
+          python -m pytest .
       - name: Run the HWT training script
         run: |
           conda activate hwtmode
