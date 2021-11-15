@@ -31,5 +31,5 @@ jobs:
       - name: Run the HWT training script
         run: |
           conda activate hwtmode
-          python -u train_mode_cnn.py config/ws_mode_cnn_train_small.yml -t -i -u -p -p2
+          python -u train_mode_cnn.py config/ws_mode_cnn_train_small.yml -t -i -u -p
           
