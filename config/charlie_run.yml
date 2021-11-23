@@ -1,0 +1,25 @@
+data_path: "/glade/scratch/dgagne/NSC_data/track_data_nsc_3km_REFL_COM_ws_nc/"
+patch_radius: 32
+input_variables: ["REFL_COM_curr"]
+output_variables: ["UP_HELI_MAX_future"]
+meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
+                 "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
+#run_start_date: "today"
+#run_end_date: "today"
+run_start_date: "2017-06-11"
+run_end_date: "2017-06-11"
+date_format: "%Y%m%d%H"
+start_hour: 01
+end_hour: 35
+out_path: "/glade/scratch/cbecker/HWT_out/refl_uh_class_021321/" # should match output path in CNN config
+activation_path: "/glade/scratch/cbecker/HWT_out/refl_uh_class_021321/new_activations/"
+models:
+  mod_0:
+    neuron_002:
+      cmap: "Blues"
+      vmin: 0.0
+      vmax: 1.6
+    neuron_004:
+      cmap: "Reds"
+      vmin: 0.0
+      vmax: 1.6

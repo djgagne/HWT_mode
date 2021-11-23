@@ -10,6 +10,7 @@ class TestData(unittest.TestCase):
             self.patch_path = "testdata/track_data_ncarstorm_3km_REFL_COM_ws_nc_small/"
         self.start_date = "2011-04-25"
         self.end_date = "2011-04-28"
+        self.run_freq = "daily"
         self.input_variables = ["REFL_1KM_AGL_curr", "U10_curr", "V10_curr"]
         self.output_variable = ["UP_HELI_MAX_curr"]
         self.meta_variables = ["masks", "i", "j", "time", "centroid_lon", "centroid_lat",
@@ -17,6 +18,7 @@ class TestData(unittest.TestCase):
         self.patch_radius = 16
         self.input_data, self.output_data, self.meta_data = load_patch_files(self.start_date,
                                                                              self.end_date,
+                                                                             self.run_freq,
                                                                              self.patch_path,
                                                                              self.input_variables,
                                                                              self.output_variable,

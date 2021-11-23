@@ -48,3 +48,14 @@ models:
     early_stopping: 0
     verbose: 1
 
+GMM_models:
+  GMM_0:
+    n_components: 5
+    covariance_type: 'full'
+    max_iter: 1000
+    tol: 0.001
+    n_init: 5
+    init_params: 'kmeans'
+    reg_covar: 0.000001
+    verbose: 1
+
