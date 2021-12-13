@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import xarray as xr
-from os.path import join
+from os.path import join, isfile
 import urllib
 from scipy.ndimage.filters import gaussian_filter
 import s3fs
@@ -47,10 +47,15 @@ def fetch_storm_reports(start_date, end_date, out_dir, report_type):
 
     dates = pd.date_range(start_date, end_date).strftime('%y%m%d')
     for date in dates:
-        url = f'https://www.spc.noaa.gov/climo/reports/{date}_rpts_{report_type}.csv'
-        filename = join(out_dir, f'{date}_{report_type}.csv')
-        urllib.request.urlretrieve(url, filename)
-
+        if isfile(join(out_dir, f'{date}_{report_type}.csv')):
+            continue
+        else:
+            url = f'https://www.spc.noaa.gov/climo/reports/{date}_rpts_{report_type}.csv'
+            filename = join(out_dir, f'{date}_{report_type}.csv')
+        try:
+            urllib.request.urlretrieve(url, filename)
+        except:
+            pass
 
 def combine_storm_reports(start_date, end_date, out_dir, report_type):
     """
@@ -65,6 +70,8 @@ def combine_storm_reports(start_date, end_date, out_dir, report_type):
     dates = pd.date_range(start_date, end_date)
     file_list = []
     for date in dates:
+        if not isfile(join(out_dir, f"{date.strftime('%y%m%d')}_{report_type}.csv")):
+            continue
         filename = join(out_dir, f"{date.strftime('%y%m%d')}_{report_type}.csv")
         f = pd.read_csv(filename)
         f['Report_Date'] = pd.to_datetime(date.strftime('%Y%m%d'))
@@ -118,7 +125,7 @@ def generate_obs_grid(beg, end, storm_report_path, model_grid_path):
     return xr.merge(obs_list)
 
 
-def generate_mode_grid(beg, end, label_path, model, model_grid_path, min_lead_time, max_lead_time, run_date_freq='1h',
+def generate_mode_grid(beg, end, labels, model_grid_path, min_lead_time, max_lead_time, run_date_freq='1h',
                        bin_width=None):
     """
     Convert tabular ML storm mode predictions and probabilites to a coarse gridded product (Xarray dataset) with dimentions (Time, y, x) and associated
@@ -138,25 +145,12 @@ def generate_mode_grid(beg, end, label_path, model, model_grid_path, min_lead_ti
     """
 
     storm_grid = xr.open_dataset(model_grid_path)
-    dates = pd.date_range(pd.Timestamp(beg) - pd.Timedelta(hours=max_lead_time),
-                          pd.Timestamp(end) - pd.Timedelta(hours=min_lead_time), freq=run_date_freq)
     valid_dates = pd.date_range(pd.Timestamp(beg) + pd.Timedelta(hours=1), pd.Timestamp(end), freq='1h')
     df_storms, storm_indxs = {}, {}
     df_list, ds_list = [], []
-    for date in dates:
-        file_string = join(label_path, f"{model}_labels_{date.strftime('%Y%m%d-%H00')}.parquet")
-        try:
-            df = pd.read_parquet(file_string)
-        except:
-            print(f"{file_string} doesn't seem to exist. Skipping.")
-            continue
-
-        df_list.append(df[(df['time'] >= pd.Timestamp(beg)) & (df['time'] <= pd.Timestamp(end))])
-
-    d = pd.concat(df_list)
 
     for valid_date in valid_dates:
-        d_sub = d[d['time'] == valid_date]
+        d_sub = labels[labels['time'] == valid_date]
         ds = storm_grid.expand_dims('time').assign_coords(valid_time=('time', [valid_date]))
 
         for storm_type in ['Supercell', 'QLCS', 'Disorganized']:
