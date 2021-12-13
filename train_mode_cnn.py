@@ -76,7 +76,7 @@ def main():
         else:
             labels[mode] = out_max[mode]
     del data_input, out_max
-    for folder in ['models', 'plots', 'data', 'metrics']:
+    for folder in ['models', 'plots', 'data', 'metrics', 'labels']:
         makedirs(join(config["out_path"], folder), exist_ok=True)
     with open(join(config['out_path'], 'full_config.yml'), "w") as config_file:
         yaml.dump(config, config_file)
