@@ -3,23 +3,23 @@ csv_model_prefix: "track_step_HRRR-ZARR_oper_"
 meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 agg_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max"]
-#run_start_date: "202105150000"
-#run_end_date: "202105200000"
-run_start_date: "today"
-run_end_date: "today"
+physical_model: "HRRR" # patch data type derived from "data_path"
+storm_report_path: "/glade/work/cbecker/SPC_storm_reports/"
+model_grid_path: '/glade/work/cbecker/HWT_mode/model_grids/NCEP_211_grid.nc'
+run_start_date: "2016-01-01"
+run_end_date: "2016-12-31"
 run_freq: "daily"
-model_path: "/glade/scratch/cbecker/HWT_rt_mods/"
-activation_path: "/glade/scratch/cbecker/hwt_dev/activations/"
-labels_path: "/glade/scratch/cbecker/hwt_dev/labels/"
 output_format: "parquet"
 models:
   semi_supervised:
     mod_0:
+      model_path: "/glade/scratch/cbecker/HWT_20211110_REFL/"
       patch_radius: 32
       input_variables: ["REFC-entire_atmosphere_curr"]
       output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
   supervised:
     cnn_test_000:
+      model_path: "/glade/scratch/cbecker/HWT_supervised/"
       patch_radius: 32
       input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
       output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
