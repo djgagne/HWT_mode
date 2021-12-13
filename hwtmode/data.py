@@ -447,3 +447,21 @@ def load_gridded_data(data_path, physical_model, run_date, forecast_hour, input_
         all_ds = all_ds.rename_dims(dict(projection_x_coordinate='col', projection_y_coordinate='row', time='Time'))
 
         return all_ds.load()
+
+
+def save_labels(labels, file_path, format):
+    """
+    Save storm mode labels to parquet or csv file.
+    Args:
+        labels: Pandas dataframe of storm mode labels
+        file_path: Path to be saved to
+        format: File format (accepts 'csv' or 'parquet')
+    Returns:
+    """
+    if format == 'csv':
+        labels.to_csv(file_path, index_label=False)
+    elif format == 'parquet':
+        labels.to_parquet(file_path)
+    else:
+        raise ValueError(f'File format {format} not found. Please use "parquet" or "csv"')
+    print(f'Wrote {file_path}.')
