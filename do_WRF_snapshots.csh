@@ -26,8 +26,8 @@ set imm=`echo $iyyyymmddhh|cut -c5-6`
 set idd=`echo $iyyyymmddhh|cut -c7-8`
 set ihh=`echo $iyyyymmddhh|cut -c9-10`
 foreach t (-2 -1 0 1 2)
-    # Forecast hours 16-34
-    foreach fhr (`seq 16 34`)
+    # Forecast hours 14-34
+    foreach fhr (`seq 14 34`) # expert labels start at fhr 16, not 14.
         # format date recognizes - it recognizes yyyymmdd but not yyyymmddhh.
         set iso="$iyyyy-$imm-${idd}T${ihh}:00+00:00"
         set valid=`date -u --date "$iso +${fhr}hours" +%Y%m%d%H`
