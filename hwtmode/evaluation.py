@@ -125,8 +125,7 @@ def hazard_cond_prob(obs, preds, A, B, nprob_thresh=0.0, secondary_thresh=None):
         mode_bin = np.where(arr >= 1, 1, 0).sum()
     else:
         hits = np.where((preds[f'{B}_nprob'] > nprob_thresh).values & (obs[A] >= 1).values, 1, 0).sum()
-        mode_bin = np.where(preds[f'{B}_nprob'] >= 1, 1, 0).sum()
-
+        mode_bin = np.where(preds[f'{B}_nprob'] > nprob_thresh, 1, 0).sum()
     cond_prob = hits / mode_bin
 
     return cond_prob

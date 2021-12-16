@@ -1,11 +1,11 @@
+import os
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
 from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites, \
     plot_top_activations, cape_shear_modes, spatial_neuron_activations, \
-    diurnal_neuron_activations, plot_prob_dist, plot_prob_cdf
+    diurnal_neuron_activations, plot_prob_dist, plot_prob_cdf, plot_storm_clusters
 from sklearn.mixture import GaussianMixture
-from sklearn.preprocessing import MinMaxScaler
 import argparse
 import yaml
 from os.path import exists, join
@@ -15,6 +15,7 @@ import tensorflow as tf
 import xarray as xr
 import joblib
 import pandas as pd
+import random
 
 
 def main():
@@ -31,6 +32,9 @@ def main():
         raise FileNotFoundError(args.config + " not found.")
     with open(args.config, "r") as config_file:
         config = yaml.load(config_file, Loader=yaml.Loader)
+    np.random.seed(config["random_seed"])
+    random.seed(config["random_seed"])
+    tf.random.set_seed(config["random_seed"])
     # Load training data
     print(f"Loading training data period: {config['train_start_date']} to {config['train_end_date']}")
     data_input = {}
@@ -72,9 +76,10 @@ def main():
         else:
             labels[mode] = out_max[mode]
     del data_input, out_max
-    for folder in ['models', 'plots', 'data', 'metrics']:
+    for folder in ['models', 'plots', 'data', 'metrics', 'labels']:
         makedirs(join(config["out_path"], folder), exist_ok=True)
-
+    with open(join(config['out_path'], 'full_config.yml'), "w") as config_file:
+        yaml.dump(config, config_file)
     if "get_visible_devices" in dir(tf.config.experimental):
         gpus = tf.config.experimental.get_visible_devices("GPU")
     else:
@@ -228,25 +233,27 @@ def main():
         print("Additional Plotting...")
         for model_name in config["models"].keys():
             for mode in ["val"]:
-                plot_out_path = join(config["out_path"], "plots")
-                neuron_activations = pd.read_csv(join(config["out_path"], "data",
-                                                      f"neuron_activations_{model_name}_{mode}.csv"),
-                                                 index_col="index")
-                cape_shear_modes(neuron_activations, plot_out_path, config["data_path"],
-                                 model_name, mode, gmm_name=None, cluster=False, num_storms=5000)
-                spatial_neuron_activations(neuron_activations, plot_out_path, mode, model_name)
-                diurnal_neuron_activations(neuron_activations, plot_out_path, mode, model_name)
                 for GMM_mod_name, GMM_config in config["GMM_models"].items():
+                    plot_out_path = join(config["out_path"], "plots", model_name, GMM_mod_name)
+                    if not exists(plot_out_path):
+                        makedirs(plot_out_path, exist_ok=True)
                     cluster_df = pd.read_csv(join(
                         config["out_path"], "data", f"{model_name}_{GMM_mod_name}_{mode}_clusters.csv"))
                     plot_prob_dist(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
                     plot_prob_cdf(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
                     cape_shear_modes(cluster_df, plot_out_path, config["data_path"], mode, model_name,
-                                     gmm_name=GMM_mod_name, cluster=True, num_storms=5000)
+                                     gmm_name=GMM_mod_name, cluster=True, num_storms=1000)
                     spatial_neuron_activations(cluster_df, plot_out_path, mode, model_name,
                                                gmm_name=GMM_mod_name, cluster=True)
                     diurnal_neuron_activations(cluster_df, plot_out_path, mode, model_name,
                                                gmm_name=GMM_mod_name, cluster=True)
+                    for prob_type in ['highest', 'lowest']:
+                        plot_storm_clusters(config['data_path'], plot_out_path, cluster_df,
+                                            n_storms=25,
+                                            patch_radius=config["patch_radius"],
+                                            prob_type=prob_type,
+                                            seed=config["random_seed"])
+
     return
 
 

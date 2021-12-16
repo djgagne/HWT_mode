@@ -20,6 +20,7 @@ dependencies:
   - scikit-image
   - pyarrow
   - s3fs
+  - joblib
   - flake8
   - pip:
     - tensorflow==2.4.0
