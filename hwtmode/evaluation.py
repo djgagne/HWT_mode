@@ -5,7 +5,10 @@ from os.path import join
 import joblib
 from hwtmode.data import transform_data, get_gmm_predictions, load_gridded_data
 from hwtmode.models import load_conv_net
-
+import ipywidgets as widgets
+from ipywidgets import GridspecLayout, Layout
+import os
+import re
 
 def brier_skill_score(y_true, y_pred):
     bs_climo = np.mean((y_true.mean() - y_true) ** 2)
@@ -130,3 +133,176 @@ def hazard_cond_prob(obs, preds, A, B, nprob_thresh=0.0, secondary_thresh=None):
 
     return cond_prob
 
+
+class Cycle(object):
+    """ Cycle through set of images. Rolls between first and last. """
+
+    def __init__(self, high_files, low_files):
+        self._high_files = high_files
+        self._low_files = low_files
+        self._max_idx = len(high_files) - 1
+        self._current_idx = 0
+        self.cluster = 0
+
+    def next(self):
+
+        if self._current_idx == self._max_idx:
+            self._current_idx = 0
+        else:
+            self._current_idx += 1
+        return self._high_files[self._current_idx], self._low_files[self._current_idx]
+
+    def previous(self):
+
+        if self._current_idx == 0:
+            self._current_idx = self._max_idx
+        else:
+            self._current_idx -= 1
+        return self._high_files[self._current_idx], self._low_files[self._current_idx]
+
+    def return_index(self):
+
+        return self._current_idx
+
+    def return_cluster(self):
+
+        x = self._high_files[self._current_idx].split('/')[-1]
+        print(x)
+        return int(''.join(i for i in x if i.isdigit()))
+
+    def __repr__(self):
+
+        return f"Cycle({self._high_files})"
+
+
+def natural_sort(l):
+    """ Natural string sorter.
+    Args:
+        l (list): List of strings to be sorted
+    """
+
+    convert = lambda text: int(text) if text.isdigit() else text
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+
+    return sorted(l, key=alphanum_key)
+
+
+def image_viewer(base_path, CNN_name, GMM_name):
+    """Create an image viewer widget to view the image of a certain format inside a directory.
+
+    Args:
+        base_path (str): Output directory.
+        CNN_name (str): Name of the CNN from config
+        GMM_name (str): Name of the GMM from config.
+    """
+
+    global cluster_dict
+    cluster_dict = dict(Supercell=[], QLCS=[], Disorganized=[])
+    header = widgets.HTML("<h1>Image Viewer</h1>", layout=Layout(height="auto"))
+    prev_button = widgets.Button(description="Prev", icon="backward", layout=Layout(width="50%", height="30%"))
+    next_button = widgets.Button(description="Next", icon="forward", layout=Layout(width="50%", height="30%"))
+    finish_button = widgets.Button(description="Finished", icon="fa-floppy-o", layout=Layout(width="80%", height="80%"))
+    QLCS_button = widgets.Button(description="QLCS", layout=Layout(width="80%", height="75%"))
+    supercell_button = widgets.Button(description="Supercell", layout=Layout(width="80%", height="75%"))
+    disorganized_button = widgets.Button(description="Disorganized", layout=Layout(width="80%", height="75%"))
+
+    img_dir = join(base_path, "plots", CNN_name, GMM_name)
+    cluster_dict_dir = join(base_path, "models", f"{CNN_name}_{GMM_name}_gmm_labels.dict")
+    image_files_high = natural_sort([os.path.join(img_dir, x) for x in os.listdir(img_dir) if 'highest' in x])
+    image_files_low = natural_sort([os.path.join(img_dir, x) for x in os.listdir(img_dir) if 'lowest' in x])
+    images = Cycle(image_files_high, image_files_low)
+    image = widgets.Image(value=open(image_files_high[0], "rb").read(), width="95%", height="100%")
+    image2 = widgets.Image(value=open(image_files_low[0], "rb").read(), width="95%", height="100%")
+    out = widgets.Output(layout={'border': '1px solid black'})
+
+    def update_image(filename1, filename2):
+
+        with open(filename1, "rb") as f1, open(filename2, "rb") as f2:
+            image.value = f1.read()
+            image2.value = f2.read()
+
+    def update_widgets(filename):
+
+        update_image(filename[0], filename[1])
+
+    def handle_next(button):
+
+        update_widgets(images.next())
+
+    def handle_prev(button):
+
+        update_widgets(images.previous())
+
+    def check_and_replace_value(dictionary, cluster):
+
+        for key in dictionary.keys():
+            if cluster in dictionary[key]:
+                dictionary[key].remove(cluster)
+        return
+
+    def assign_QLCS(cluster):
+
+        check_and_replace_value(cluster_dict, cluster)
+        cluster_dict['QLCS'].append(cluster)
+        with out:
+            out.clear_output()
+            print(f"\nCluster {cluster} has been assigned 'QLCS'")
+            print(cluster_dict)
+
+    def assign_supercell(cluster):
+
+        check_and_replace_value(cluster_dict, cluster)
+        cluster_dict['Supercell'].append(cluster)
+        with out:
+            out.clear_output()
+            print(f"\nCluster {cluster} has been assigned 'Supercell'")
+            print(cluster_dict)
+
+    def assign_Disorganized(cluster):
+
+        check_and_replace_value(cluster_dict, cluster)
+        cluster_dict['Disorganized'].append(cluster)
+        with out:
+            out.clear_output()
+            print(f"\nCluster {cluster} has been assigned 'Disorganized'")
+            print(cluster_dict)
+
+    def on_sc_clicked(button):
+
+        assign_supercell(images.return_cluster())
+
+    def on_qlcs_clicked(button):
+
+        assign_QLCS(images.return_cluster())
+
+    def on_dis_clicked(button):
+
+        assign_Disorganized(images.return_cluster())
+
+    def write_file(button):
+
+        joblib.dump(cluster_dict, cluster_dict_dir)
+        with out:
+            out.clear_output()
+            print(f"\nSuccessfully wrote the results to {cluster_dict_dir}")
+            print(cluster_dict)
+
+    prev_button.on_click(handle_prev)
+    next_button.on_click(handle_next)
+    supercell_button.on_click(on_sc_clicked)
+    QLCS_button.on_click(on_qlcs_clicked)
+    disorganized_button.on_click(on_dis_clicked)
+    finish_button.on_click(write_file)
+
+    app = GridspecLayout(9, 6, height='900px')
+    app[0, 0] = QLCS_button
+    app[0, 1] = supercell_button
+    app[0, 2] = disorganized_button
+    app[0, 3] = prev_button
+    app[0, 4] = next_button
+    app[0, 5] = finish_button
+    app[1:8, 0:3] = image
+    app[1:8, 3:] = image2
+    app[-1, :] = out
+
+    return app
