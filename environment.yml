@@ -22,6 +22,7 @@ dependencies:
   - s3fs
   - joblib
   - flake8
+  - ipywidgets
   - pip:
     - tensorflow==2.4.0
     - tensorflow-probability==0.12.2
