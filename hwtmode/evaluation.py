@@ -207,7 +207,7 @@ def image_viewer(base_path, CNN_name, GMM_name):
     disorganized_button = widgets.Button(description="Disorganized", layout=Layout(width="80%", height="75%"))
 
     img_dir = join(base_path, "plots", CNN_name, GMM_name)
-    cluster_dict_dir = join(base_path, "models", f"{CNN_name}_{GMM_name}_gmm_labels.dict")
+    cluster_dict_dir = join(base_path, "models", CNN_name, f"{CNN_name}_{GMM_name}_gmm_labels.dict")
     image_files_high = natural_sort([os.path.join(img_dir, x) for x in os.listdir(img_dir) if 'highest' in x])
     image_files_low = natural_sort([os.path.join(img_dir, x) for x in os.listdir(img_dir) if 'lowest' in x])
     images = Cycle(image_files_high, image_files_low)
