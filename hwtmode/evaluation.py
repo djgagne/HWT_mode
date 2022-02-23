@@ -9,6 +9,7 @@ import ipywidgets as widgets
 from ipywidgets import GridspecLayout, Layout
 import os
 import re
+from datetime import datetime
 
 def brier_skill_score(y_true, y_pred):
     bs_climo = np.mean((y_true.mean() - y_true) ** 2)
@@ -187,18 +188,18 @@ def natural_sort(l):
     return sorted(l, key=alphanum_key)
 
 
-def image_viewer(base_path, CNN_name, GMM_name):
+def image_viewer(base_path, CNN_name, GMM_name, evaluator):
     """Create an image viewer widget to view the image of a certain format inside a directory.
 
     Args:
         base_path (str): Output directory.
         CNN_name (str): Name of the CNN from config
         GMM_name (str): Name of the GMM from config.
+        evaluator (str): Name / ID of person performing the labeling.
     """
 
     global cluster_dict
     cluster_dict = dict(Supercell=[], QLCS=[], Disorganized=[])
-    header = widgets.HTML("<h1>Image Viewer</h1>", layout=Layout(height="auto"))
     prev_button = widgets.Button(description="Prev", icon="backward", layout=Layout(width="50%", height="30%"))
     next_button = widgets.Button(description="Next", icon="forward", layout=Layout(width="50%", height="30%"))
     finish_button = widgets.Button(description="Finished", icon="fa-floppy-o", layout=Layout(width="80%", height="80%"))
@@ -207,7 +208,6 @@ def image_viewer(base_path, CNN_name, GMM_name):
     disorganized_button = widgets.Button(description="Disorganized", layout=Layout(width="80%", height="75%"))
 
     img_dir = join(base_path, "plots", CNN_name, GMM_name)
-    cluster_dict_dir = join(base_path, "models", f"{CNN_name}_{GMM_name}_gmm_labels.dict")
     image_files_high = natural_sort([os.path.join(img_dir, x) for x in os.listdir(img_dir) if 'highest' in x])
     image_files_low = natural_sort([os.path.join(img_dir, x) for x in os.listdir(img_dir) if 'lowest' in x])
     images = Cycle(image_files_high, image_files_low)
@@ -281,10 +281,12 @@ def image_viewer(base_path, CNN_name, GMM_name):
 
     def write_file(button):
 
-        joblib.dump(cluster_dict, cluster_dict_dir)
+        time = datetime.now().strftime("%Y-%m-%d_%H%M")
+        label_out_path = join(base_path, "models", f"{CNN_name}_{GMM_name}_labels_{evaluator}_{time}.dict")
+        joblib.dump(cluster_dict, label_out_path)
         with out:
             out.clear_output()
-            print(f"\nSuccessfully wrote the results to {cluster_dict_dir}")
+            print(f"\nSuccessfully wrote the results to {label_out_path}")
             print(cluster_dict)
 
     prev_button.on_click(handle_prev)
