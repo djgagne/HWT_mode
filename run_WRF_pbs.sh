@@ -1,9 +1,9 @@
 #!/bin/bash -l
 #PBS -N mode_cnn
 #PBS -A NAML0001
-#PBS -l walltime=01:00:00
-#PBS -o hwt_WRF.out
-#PBS -e hwt_WRF.out
+#PBS -l walltime=04:00:00
+#PBS -o hwt_WRF_UH.out
+#PBS -e hwt_WRF_UH.out
 #PBS -q casper
 #PBS -l select=1:ncpus=12:mem=64GB
 #PBS -m a
