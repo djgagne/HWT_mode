@@ -38,7 +38,7 @@ def main():
 
     l = []
     for d in pd.date_range(start_str.replace('-', ''), end_str.replace('-', ''), freq=config['run_freq'][0]):
-        file_path = join(config["data_path"].replace('_nc/', '_csv/'),
+        file_path = join(config["data_path"].replace('_nc', '_csv'),
                          f'{config["csv_model_prefix"]}{d.strftime("%Y%m%d-%H00")}.csv')
         if exists(file_path):
             df = pd.read_csv(file_path)
@@ -98,7 +98,7 @@ def main():
             labels[model_name][config["agg_variables"]] = pd.merge(labels[model_name], storm_data,
                                                                    on=labels[model_name].index)[config["agg_variables"]]
             file_name = join(model_dict[model_name]["model_path"], "labels",
-                                       f"{model_name}_labels_{date_str}.{config['output_format']}")
+                                       f"{model_name}_labels_{date_str}_HRRR_hourly.{config['output_format']}")
             save_labels(labels=labels[model_name],
                         file_path=file_name,
                         format=config["output_format"])
@@ -113,27 +113,31 @@ def main():
                     print(f'Downloading SPC storm reports from {start_date} through {end_date} for {report_type}')
                     fetch_storm_reports(start_date, end_date, storm_report_path, report_type)
 
-                if not isfile(join(model_dict[model_name]["model_path"], "labels", f"obs_{date_str}.nc")):
+                if not isfile(join(model_dict[model_name]["model_path"], "labels", f"obs_{date_str}_HRRR_hourly.nc")):
                     print(f'Aggregating storm reports to a grid.')
                     obs = generate_obs_grid(beg=start_date,
                                             end=end_date,
                                             storm_report_path=storm_report_path,
-                                            model_grid_path=config["model_grid_path"])
-                    file_name = join(model_dict[model_name]["model_path"], "labels", f"obs_{date_str}.nc")
+                                            model_grid_path=config["model_grid_path"],
+                                            proj_str=config["proj_str"])
+                    file_name = join(model_dict[model_name]["model_path"], "labels", f"obs_{date_str}_HRRR_hourly.nc")
                     obs.to_netcdf(file_name)
                     print(f"Wrote {file_name}.")
 
                 print("Aggregating storm mode labels to a grid.")
+                print(config["bin_width"])
                 data = generate_mode_grid(beg=start_date,
                                           end=end_date,
                                           labels=labels[model_name],
                                           model_grid_path=config["model_grid_path"],
                                           min_lead_time=1,
                                           max_lead_time=24,
+                                          proj_str=config["proj_str"],
                                           run_date_freq='1d',
-                                          bin_width=None)
-                file_name = join(model_dict[model_name]["model_path"], "labels", config["physical_model"],
-                                 f"{model_name}_gridded_labels_{date_str}.nc")
+                                          bin_width=config["bin_width"])
+
+                file_name = join(model_dict[model_name]["model_path"], "labels",
+                                 f"{config['physical_model']}_{model_name}_gridded_labels_{date_str}_HRRR_hourly.nc")
                 data.to_netcdf(file_name)
                 print(f"Wrote {file_name}.")
     return

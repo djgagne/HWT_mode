@@ -1,14 +1,14 @@
-label_path: '/glade/p/cisl/aiml/hwt_mode/HWT_2021/labels/'
-storm_report_path: '/glade/work/cbecker/HWT_2021_storm_reports/'
+label_path: '/glade/scratch/cbecker/HWT_20211116_UH_9/labels/'
+storm_report_path: '/glade/work/cbecker/2016_storm_reports/'
 model_grid_path: '/glade/work/cbecker/HWT_mode/model_grids/NCEP_211_grid.nc'
 output_path: '/glade/work/cbecker/HWT_postproc/'
 HRRR_lat_lon_grid: '/glade/work/cbecker/HWT_mode/model_grids/HRRR_latlon.nc'
 HRRR_AWS_bucket: 's3://hrrrzarr/sfc/'
 WRF_data_path: '/glade/p/mmm/parc/sobash/NSC/3KM_WRF_POST_12sec_ts/'
-cnn: 'cnn_test_000'
-gmm: 'mod_0'
-start_date: '202104280000'
-end_date: '202106040000'
+cnn: 'CNN_1'
+gmm: 'GMM_1'
+start_date: '201601010000'
+end_date: '201612310000'
 run_freq: '1d'
 max_forecast_len: 24
 prob_bin_width: 0.1
@@ -20,5 +20,7 @@ WRF_proxy_variables: ["HAILCAST_DIAM_MAX",
                       "WSPD10MAX"]
 proxy_quantile_vals: [0.90, 0.95, 0.99, 0.999, 0.9999, 0.99999, 1]
 use_saved_indices: True
+HRRR_proj_str: "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +a=6371229 +b=6371229"
 HRRR_indices_path: '/glade/work/cbecker/HWT_mode/model_grids/HRRR_80km_indices.list'
+WRF_proj_str: "+proj=lcc +lat_0=38.336433 +lon_0=-101 +lat_1=32 +lat_2=46 +a=6370000 +b=6370000"
 WRF_indices_path: '/glade/work/cbecker/HWT_mode/model_grids/WRF_80km_indices.list'

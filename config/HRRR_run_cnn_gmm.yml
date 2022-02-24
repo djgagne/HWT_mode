@@ -1,4 +1,4 @@
-data_path: "/glade/scratch/cbecker/HRRR_objects/HRRR_AWS_realtime_test_20211005/track_data_hrrr_3km_nc_refl/"
+data_path: "/glade/scratch/cbecker/HRRR_objects/201905_201906_hourly/track_data_hrrr_3km_nc_refl"
 csv_model_prefix: "track_step_HRRR-ZARR_oper_"
 meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
@@ -6,20 +6,27 @@ agg_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max"]
 physical_model: "HRRR" # patch data type derived from "data_path"
 storm_report_path: "/glade/work/cbecker/SPC_storm_reports/"
 model_grid_path: '/glade/work/cbecker/HWT_mode/model_grids/NCEP_211_grid.nc'
-run_start_date: "2016-01-01"
-run_end_date: "2016-12-31"
-run_freq: "daily"
+run_start_date: "2019-05-01"
+run_end_date: "2019-06-01"
+run_freq: "hourly"
 output_format: "parquet"
+bin_width: 0.2 # ML probability bins
+proj_str: "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +a=6371229 +b=6371229"
 models:
   semi_supervised:
-    mod_0:
-      model_path: "/glade/scratch/cbecker/HWT_20211110_REFL/"
+    CNN_1:
+      model_path: "/glade/scratch/cbecker/HWT_20220111_REFLUH_copy2/"
       patch_radius: 32
-      input_variables: ["REFC-entire_atmosphere_curr"]
+      input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
       output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
+    CNN_2:
+      model_path: "/glade/scratch/cbecker/HWT_20220111_REFLUH_copy2/"
+      patch_radius: 32
+      input_variables: [ "REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
+      output_variables: [ "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
   supervised:
     cnn_test_000:
-      model_path: "/glade/scratch/cbecker/HWT_supervised/"
+      model_path: "/glade/scratch/cbecker/HWT_supervised_copy/"
       patch_radius: 32
       input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
       output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]

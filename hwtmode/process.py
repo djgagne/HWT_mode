@@ -9,7 +9,7 @@ import joblib
 from pyproj import Proj
 from scipy.spatial.distance import cdist
 
-def find_coord_indices(lon_array, lat_array, lon_points, lat_points, dist_proj='lcc'):
+def find_coord_indices(lon_array, lat_array, lon_points, lat_points, proj_str):
     """
     Find indices of nearest lon/lat pair on a grid. Supports rectilinear and curilinear grids.
     lon_points / lat_points must be received as a list.
@@ -18,14 +18,12 @@ def find_coord_indices(lon_array, lat_array, lon_points, lat_points, dist_proj='
         lat_array (np.array): Latitude values of coarse grid you are matching against
         lon_points (list): List of Longitude points from orginal grid/object
         lat_points (list): List of Latitude points from original grid/object
-        dist_proj (str): Name of projection for pyproj to calculate distances
+        proj_str (str): Projection string
     Returns (list):
         List of i, j (Lon/Lat) indices for coarse grid.
-
     """
-    if dist_proj == 'lcc':
-        proj = Proj(proj='lcc', R=6371229, lat_0=38.336433, lon_0=-97.53348, lat_1=32, lat_2=46)  ## from WRF HWT data
 
+    proj = Proj(proj_str)
     proj_lon, proj_lat = np.array(proj(lon_array, lat_array))  # transform to distances using specified projection
     lonlat = np.column_stack(
         (proj_lon.ravel(), proj_lat.ravel()))  # Stack all coarse x, y distances for array shape (n, 2)
@@ -84,7 +82,7 @@ def combine_storm_reports(start_date, end_date, out_dir, report_type):
     return df
 
 
-def generate_obs_grid(beg, end, storm_report_path, model_grid_path):
+def generate_obs_grid(beg, end, storm_report_path, model_grid_path, proj_str):
     """
     Generate Xarray dataset (Time, x, y) of observed storm reports. Each hazard is stored as a seperate variable. Valid time is separted by hour. Minimum and maximum
     lead times are used for ensembled HRRR runs.
@@ -112,7 +110,7 @@ def generate_obs_grid(beg, end, storm_report_path, model_grid_path):
             ds[report_type.split('_')[-1]] = ds['lat'] * 0
 
             obs_sub = obs[obs['Actual_Date'] == valid_date]
-            obs_indx = find_coord_indices(ds['lon'].values, ds['lat'].values, obs_sub['Lon'], obs_sub['Lat'])
+            obs_indx = find_coord_indices(ds['lon'].values, ds['lat'].values, obs_sub['Lon'], obs_sub['Lat'], proj_str)
             for i in obs_indx:
                 if i is not None:
                     ds[report_type.split('_')[-1]][i[0], i[1]] += 1
@@ -125,7 +123,7 @@ def generate_obs_grid(beg, end, storm_report_path, model_grid_path):
     return xr.merge(obs_list)
 
 
-def generate_mode_grid(beg, end, labels, model_grid_path, min_lead_time, max_lead_time, run_date_freq='1h',
+def generate_mode_grid(beg, end, labels, model_grid_path, min_lead_time, max_lead_time, proj_str, run_date_freq='1h',
                        bin_width=None):
     """
     Convert tabular ML storm mode predictions and probabilites to a coarse gridded product (Xarray dataset) with dimentions (Time, y, x) and associated
@@ -138,6 +136,7 @@ def generate_mode_grid(beg, end, labels, model_grid_path, min_lead_time, max_lea
         model_grid_path: Path to coarse grid
         min_lead_time: Minimum leadtime for overlapping ensembles produced by HRRR
         max_lead_time: Maximum lead time for over lapping ensembled produced by HRRR
+        proj_str (str): Projection string
         run_date_freq: Frequency spacing of model run times ('{X}h', '{x}d', ...)
         bin_width: Width of bins for ML probabilities
     Returns:
@@ -160,7 +159,8 @@ def generate_mode_grid(beg, end, labels, model_grid_path, min_lead_time, max_lea
             storm_indxs[storm_type] = find_coord_indices(ds['lon'].values,
                                                          ds['lat'].values,
                                                          df_storms[storm_type]['centroid_lon'],
-                                                         df_storms[storm_type]['centroid_lat'])
+                                                         df_storms[storm_type]['centroid_lat'],
+                                                         proj_str)
             ds[storm_type] = ds['lat'] * 0
             for i in storm_indxs[storm_type]:
                 ds[storm_type][i[0], i[1]] += 1
@@ -181,7 +181,8 @@ def generate_mode_grid(beg, end, labels, model_grid_path, min_lead_time, max_lea
                     storm_indxs[full_name] = find_coord_indices(ds['lon'].values,
                                                                 ds['lat'].values,
                                                                 df_storms[full_name]['centroid_lon'],
-                                                                df_storms[full_name]['centroid_lat'])
+                                                                df_storms[full_name]['centroid_lat'],
+                                                                proj_str)
                     ds[full_name] = ds['lat'] * 0
                     for i in storm_indxs[full_name]:
                         ds[full_name][i[0], i[1]] += 1
@@ -351,7 +352,7 @@ def get_quantiles(data, quantiles):
     return proxy_quant_df
 
 
-def get_proxy_events(data, quantile_df, variables, model_grid_path, use_saved_indices=False, index_path=None):
+def get_proxy_events(data, quantile_df, variables, model_grid_path, proj_str, use_saved_indices=False, index_path=None):
     """
     Map proxy "events" onto coarse grid for each location that exceeds specific quantile.
     Args:
@@ -359,13 +360,14 @@ def get_proxy_events(data, quantile_df, variables, model_grid_path, use_saved_in
         quantile_df: Dataframe of quantiles / variables
         variables: List of variables
         model_grid_path: Path to coarse grid to aggregate to
+        proj_str (str): Projection string
         use_saved_indices: Whether or not to load list of indices for each grid cell from fine to coarse grid
         index_path: Path to saved indices (default = None)
 
     Returns:
         Aggregated xarray dataset of proxy events (exceedence of variables above quantiles)
     """
-    indices = get_indices(data, model_grid_path, use_saved_indices, index_path)
+    indices = get_indices(data, model_grid_path, proj_str, use_saved_indices, index_path)
 
     coarse_grid = xr.open_dataset(model_grid_path)
     dummy_var = variables[0].split('-')[0]
@@ -388,12 +390,13 @@ def get_proxy_events(data, quantile_df, variables, model_grid_path, use_saved_in
     return proxy_events.assign_coords({'valid_time': data['valid_time']})
 
 
-def get_indices(data, coarse_grid_path, use_saved_indices=False, index_path=None):
+def get_indices(data, coarse_grid_path, proj_str, use_saved_indices=False, index_path=None):
     """
     Generate list of matching lat/lon indices on coarse grid from fine grid. Supports preloaded indices.
     Args:
         data: Proxy data (xarray dataset including lat/lon)
         coarse_grid_path: Path to coarse grid
+        proj_str (str): Projection string
         use_saved_indices: Boolean for using preloaded indices.
         index_path: Path to preloaded indices.
 
@@ -406,6 +409,6 @@ def get_indices(data, coarse_grid_path, use_saved_indices=False, index_path=None
         coarse_grid = xr.open_dataset(coarse_grid_path)
         lat, lon = data['lat'].values, data['lon'].values
         coarse_lat, coarse_lon = coarse_grid['lat'].values, coarse_grid['lon'].values
-        indices = find_coord_indices(coarse_lon, coarse_lat, lon.ravel(), lat.ravel())
+        indices = find_coord_indices(coarse_lon, coarse_lat, lon.ravel(), lat.ravel(), proj_str)
 
         return indices
