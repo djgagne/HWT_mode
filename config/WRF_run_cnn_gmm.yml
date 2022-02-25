@@ -7,8 +7,8 @@ meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centr
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 agg_variables: ["UP_HELI_MAX_max", "USHR6-potential_mean", "VSHR6-potential_mean",
                 "MLCAPE-potential_max", "MLCAPE-potential_mean"]
-run_start_date: "2013-01-01"
-run_end_date: "2013-12-31"
+run_start_date: "2013-05-01"
+run_end_date: "2013-06-01"
 run_freq: "daily"
 output_format: "parquet"
 bin_width: 0.2 # ML probability bins
@@ -20,20 +20,18 @@ models:
       patch_radius: 32
       input_variables: ["REFL_COM_curr", "UP_HELI_MAX_curr"]
       output_variables: ["UP_HELI_MAX_curr"]
-#    CNN_2:
-#      model_path: "/glade/scratch/cbecker/HWT_20220111_REFLUH_copy/"
-#      patch_radius: 32
-#      input_variables: [ "REFL_COM_curr", "UP_HELI_MAX_curr" ]
-#      output_variables: [ "UP_HELI_MAX_curr" ]
-#    CNN_3:
-#      model_path: "/glade/scratch/cbecker/HWT_20220111_REFLUH/"
-#      patch_radius: 32
-#      input_variables: [ "REFL_COM_curr", "UP_HELI_MAX_curr" ]
-#      output_variables: [ "UP_HELI_MAX_curr" ]
   supervised:
     cnn_test_000:
       model_path: "/glade/scratch/cbecker/HWT_supervised_copy/"
       patch_radius: 32
       input_variables: ["REFL_COM_curr", "UP_HELI_MAX_curr"]
       output_variables: ["UP_HELI_MAX_curr"]
+  supervised_DNN:
+    DNN_1:
+      model_path: "/glade/scratch/cbecker/HWT_DNN"
+      input_variables: ["Centroid_Lat", "UP_HELI_MAX_max", "Forecast_Hour",
+                        "major_axis_length", "SBLCL-potential_max",
+                        "Centroid_Lon", "U_BUNK-potential_min", "eccentricity",
+                        "W_UP_MAX_mean", "GRPL_MAX_mean"]
+
 
