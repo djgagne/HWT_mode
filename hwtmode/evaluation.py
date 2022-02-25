@@ -10,12 +10,22 @@ from ipywidgets import GridspecLayout, Layout
 import os
 import re
 from datetime import datetime
+from tensorflow.keras import backend as K
 
 def brier_skill_score(y_true, y_pred):
     bs_climo = np.mean((y_true.mean() - y_true) ** 2)
     bs = brier_score_loss(y_true, y_pred)
     return 1 - bs / bs_climo
 
+def brier_score(obs, preds):
+    return K.mean((preds - obs) ** 2)
+
+def bss(obs, preds):
+    bs = brier_score(obs, preds)
+    obs_climo = K.mean(obs, axis=0)
+    bs_climo = K.mean((obs - obs_climo) ** 2)
+    bss = 1.0 - bs/(bs_climo+K.epsilon())
+    return bss
 
 def classifier_metrics(y_true, model_predictions):
     """
