@@ -5,9 +5,11 @@ from os import makedirs, path
 import pandas as pd
 import joblib
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, get_meta_scalars, predict_labels_gmm, \
-    predict_labels_cnn, save_labels
+    predict_labels_cnn, predict_labels_dnn, save_labels
 from hwtmode.process import fetch_storm_reports, generate_obs_grid, generate_mode_grid
 from hwtmode.models import load_conv_net
+from hwtmode.evaluation import bss, brier_score
+from tensorflow.keras.models import load_model
 
 
 def main():
@@ -38,7 +40,7 @@ def main():
 
     l = []
     for d in pd.date_range(start_str.replace('-', ''), end_str.replace('-', ''), freq=config['run_freq'][0]):
-        file_path = join(config["data_path"].replace('_nc', '_csv'),
+        file_path = join(config["data_path"].replace('_nc/', '_csv/'),
                          f'{config["csv_model_prefix"]}{d.strftime("%Y%m%d-%H00")}.csv')
         if exists(file_path):
             df = pd.read_csv(file_path)
@@ -52,48 +54,60 @@ def main():
             label_path = join(model_dict[model_name]["model_path"], 'labels')
             if not exists(label_path):
                 makedirs(label_path)
-            scale_values = pd.read_csv(join(model_path, f"scale_values_{model_name}.csv"))
-            scale_values['variable'] = model_dict[model_name]['input_variables']
-            scale_values = scale_values.set_index('variable')
 
-            print('Loading storm patches...')
-            input_data, output, meta = load_patch_files(config["run_start_date"],
-                                                        config["run_end_date"],
-                                                        config["run_freq"],
-                                                        config["data_path"],
+            if model_type != 'supervised_DNN':
+                scale_values = pd.read_csv(join(model_path, f"scale_values_{model_name}.csv"))
+                scale_values['variable'] = model_dict[model_name]['input_variables']
+                scale_values = scale_values.set_index('variable')
+
+                print('Loading storm patches...')
+                input_data, output, meta = load_patch_files(config["run_start_date"],
+                                                            config["run_end_date"],
+                                                            config["run_freq"],
+                                                            config["data_path"],
+                                                            model_dict[model_name]["input_variables"],
+                                                            model_dict[model_name]["output_variables"],
+                                                            config["meta_variables"],
+                                                            model_dict[model_name]["patch_radius"])
+
+                input_combined = combine_patch_data(input_data, model_dict[model_name]["input_variables"])
+                input_scaled, scale_values = min_max_scale(input_combined, scale_values)
+                meta_df = get_meta_scalars(meta)
+                models[model_name] = load_conv_net(model_path, model_name)
+                print(model_name, f'({model_type})')
+                print(models[model_name].model_.summary())
+
+                if model_type == 'semi_supervised':
+
+                    neuron_columns = [f"neuron_{n:03d}" for n in range(models[model_name].dense_neurons)]
+                    neuron_activations[model_name] = pd.merge(meta_df, pd.DataFrame(0, columns=neuron_columns,
+                                                              index=meta_df.index), left_index=True, right_index=True)
+                    neuron_activations[model_name].loc[:, neuron_columns] = \
+                        models[model_name].output_hidden_layer(input_scaled.values)
+
+                    gmms[model_name] = joblib.load(join(f"{model_path}_GMM_1.mod"))
+                    cluster_assignments = joblib.load(join(model_path, f'{model_name}_GMM_1_gmm_labels.dict'))
+
+                    labels[model_name] = predict_labels_gmm(neuron_activations[model_name], neuron_columns, gmms[model_name],
+                                                            cluster_assignments)
+                    labels[model_name] = pd.merge(labels[model_name], meta_df)
+
+                elif model_type == 'supervised':
+
+                    labels[model_name] = predict_labels_cnn(input_scaled, meta_df, models[model_name])
+                    labels[model_name] = pd.merge(labels[model_name], meta_df)
+
+            elif model_type == 'supervised_DNN':
+                models[model_name] = load_model(join(model_dict[model_name]['model_path'], f"{model_name}.h5"),
+                                                custom_objects={"brier_score": brier_score, "brier_skill_score": bss})
+                print(model_name, f'({model_type})')
+                print(models[model_name].summary())
+                with open(join(model_dict[model_name]["model_path"], 'scale_values.yaml'), "r") as config_file:
+                    scale_values = yaml.load(config_file, Loader=yaml.Loader)
+                labels[model_name] = predict_labels_dnn(storm_data, scale_values, models[model_name],
                                                         model_dict[model_name]["input_variables"],
-                                                        model_dict[model_name]["output_variables"],
-                                                        config["meta_variables"],
-                                                        model_dict[model_name]["patch_radius"])
-
-            input_combined = combine_patch_data(input_data, model_dict[model_name]["input_variables"])
-            print('COMBINED VARNAMES: ', input_combined['var_name'])
-            input_scaled, scale_values = min_max_scale(input_combined, scale_values)
-            print("Input shape:", input_scaled.shape)
-            meta_df = get_meta_scalars(meta)
-            models[model_name] = load_conv_net(model_path, model_name)
-            print(model_name, f'({model_type})')
-            print(models[model_name].model_.summary())
-
-            if model_type == 'semi_supervised':
-
-                neuron_columns = [f"neuron_{n:03d}" for n in range(models[model_name].dense_neurons)]
-                neuron_activations[model_name] = pd.merge(meta_df, pd.DataFrame(0, columns=neuron_columns,
-                                                          index=meta_df.index), left_index=True, right_index=True)
-                neuron_activations[model_name].loc[:, neuron_columns] = \
-                    models[model_name].output_hidden_layer(input_scaled.values)
-
-                gmms[model_name] = joblib.load(join(f"{model_path}_GMM_1.mod"))
-                cluster_assignments = joblib.load(join(model_path, f'{model_name}_GMM_1_gmm_labels.dict'))
-
-                labels[model_name] = predict_labels_gmm(neuron_activations[model_name], neuron_columns, gmms[model_name],
-                                                        cluster_assignments)
-                labels[model_name] = pd.merge(labels[model_name], meta_df)
-
-            elif model_type == 'supervised':
-
-                labels[model_name] = predict_labels_cnn(input_scaled, meta_df, models[model_name])
-                labels[model_name] = pd.merge(labels[model_name], meta_df)
+                                                        ['Valid_Date', 'Forecast_Hour', 'Centroid_Lon', 'Centroid_Lat',
+                                                         'Track_ID', 'Step_ID', 'Run_Date'])
 
             labels[model_name][config["agg_variables"]] = pd.merge(labels[model_name], storm_data,
                                                                    on=labels[model_name].index)[config["agg_variables"]]

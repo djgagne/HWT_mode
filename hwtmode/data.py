@@ -8,6 +8,7 @@ from skimage import measure
 from shapely.geometry import Polygon
 import joblib
 import s3fs
+from sklearn.preprocessing import StandardScaler
 
 
 def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: str, input_variables: list,
@@ -234,6 +235,29 @@ def predict_labels_cnn(input_data, meta_df, model, objects=True):
         df.insert(1, 'forecast_hour', ((df['time'] - df['run_date']) / pd.Timedelta(hours=1)).astype('int32'))
     return df
 
+def predict_labels_dnn(input_data, scale_values, model, input_vars, meta_vars):
+    """ Generate labels and probabilities from DNN and add to labels
+     Args:
+        input_data (df): Hagelslag csv output
+        scale_values (dict): Dictionary of Column names and scale values for StandardScaler()
+        model: Loaded Tensorflow model
+        input_vars (list): input variables to model
+        meta_vars (list): List of meta variables to include
+    Returns:
+        Dataframe of labels, probabilities, and meta data.
+     """
+    scaler = StandardScaler()
+    scaler.mean_ = scale_values['mean']
+    scaler.scale_ = scale_values['std']
+    df = pd.DataFrame(model.predict(scaler.transform(input_data[input_vars])),
+                      columns=["QLCS_prob", "Supercell_prob", "Disorganized_prob"])
+    df['label_int'] = df.values.argmax(axis=1)
+    for i, label in enumerate(['QLCS', 'Supercell', 'Disorganized']):
+        df.loc[df['label_int'] == i, 'label'] = label
+    df_w_meta = pd.concat([input_data[meta_vars], df], axis=1)
+    df_w_meta.rename(columns={x: x.lower() for x in meta_vars}, inplace=True)
+
+    return df_w_meta
 
 def lon_to_web_mercator(lon):
     """
