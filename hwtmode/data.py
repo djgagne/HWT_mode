@@ -256,6 +256,7 @@ def predict_labels_dnn(input_data, scale_values, model, input_vars, meta_vars):
         df.loc[df['label_int'] == i, 'label'] = label
     df_w_meta = pd.concat([input_data[meta_vars], df], axis=1)
     df_w_meta.rename(columns={x: x.lower() for x in meta_vars}, inplace=True)
+    df_w_meta.rename(columns={'valid_date': 'time'}, inplace=True)
 
     return df_w_meta
 
