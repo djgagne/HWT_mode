@@ -1,8 +1,10 @@
 data_path: "/glade/scratch/cbecker/HRRR_objects/20220228/201905_201906_daily/track_data_hrrr_3km_nc/"
 csv_model_prefix: "track_step_HRRR-ZARR_oper_"
-meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
+patch_meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
-agg_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max",
+csv_meta_variables: ['Valid_Date', 'Run_Date', 'Forecast_Hour', 'Step_ID', 'Track_ID',
+                      'Duration', 'Centroid_Lon', 'Centroid_Lat']
+storm_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max",
                 "VUCSH-0_6000m_above_ground-potential_mean",
                 "VVCSH-0_6000m_above_ground-potential_mean"]
 #                "CAPE-0_3000m_above_ground_potential_max", # only in v4
