@@ -177,88 +177,108 @@ def storm_max_value(output_data: xr.DataArray, masks: xr.DataArray) -> np.ndarra
     return max_values
 
 
-def predict_labels_gmm(neuron_acts, neuron_columns, gmm_model, cluster_dict, objects=True):
+def predict_labels_gmm(neuron_acts, gmm_model, model_name, cluster_dict):
     """
     Given neuron activations, feed to GMM to produce labels and probabilities.
     Args:
         neuron_acts: Pandas dataframe of neuron activations (including meta data)
-        neuron_columns: list of columns containing the activations
         gmm_model: Trained Gaussian Mixture Model object
+        model_name: (str)
         cluster_dict: Dictionary mapping cluster numbers to storm mode
 
     Returns:
-        Pandas DataFrame of predictions and probabilities (including meta data)
+        Pandas DataFrame of predictions and probabilities
     """
 
-    prob_labels = [f'cluster_{x}_prob' for x in range(gmm_model.n_components)]
-    neuron_acts['label'] = -9999
-    neuron_acts['cluster'] = gmm_model.predict(neuron_acts.loc[:, neuron_columns])
-    neuron_acts[prob_labels] = gmm_model.predict_proba(
-        neuron_acts.loc[:, neuron_acts.columns.str.contains('neuron_')])
+    clust_prob_labels = [f'{model_name}_cluster_{x}_prob' for x in range(gmm_model.n_components)]
+    mode_prob_labels = [f'{model_name}_{x}_prob' for x in ['QLCS', 'Supercell', 'Disorganized']]
+    max_prob_label = f'{model_name}_label_prob'
+    label = f'{model_name}_label'
+    cols = clust_prob_labels + mode_prob_labels + [max_prob_label] + [label]
 
+    df = pd.DataFrame(index=range(len(input_data)), columns=cols, dtype='float32')
+    df.loc[:, clust_prob_labels] = gmm_model.predict_proba(
+        df.loc[:, neuron_acts.columns.str.contains('neuron_')])
     for key in cluster_dict.keys():
-        neuron_acts.loc[neuron_acts['cluster'].isin(cluster_dict[key]), 'label'] = key
-        neuron_acts[f'{key}_prob'] = neuron_acts[[f'cluster_{x}_prob' for x in cluster_dict[key]]].sum(axis=1)
-        neuron_acts[key] = 0
-        neuron_acts.loc[neuron_acts['label'].isin([key]), key] = 1
-        labels_w_meta = neuron_acts.loc[:, ~neuron_acts.columns.isin(neuron_columns)]
+        df[f'{model_name}_{key}_prob'] = df[[f'{model_name}_cluster_{x}_prob' for x in cluster_dict[key]]].sum(axis=1)
+    df.loc[:, max_prob_label] = df.loc[:, mode_prob_labels].max(axis=1)
+    max_mode = df.loc[:, mode_prob_labels].idxmax(axis=1)
+    df.loc[:, label] = max_mode.apply(lambda x: x.split('_')[-2])
 
-    labels_w_meta.loc[:, 'label_int'] = labels_w_meta['label'].factorize()[0]
-    labels_w_meta.loc[:, 'label_prob'] = labels_w_meta[['Supercell_prob', 'QLCS_prob', 'Disorganized_prob']].max(axis=1)
-    if objects:
-        labels_w_meta.insert(1, 'forecast_hour', ((labels_w_meta['time'] - labels_w_meta['run_date']) /
-                                                  pd.Timedelta(hours=1)).astype('int32'))
-    return labels_w_meta
+    return df
 
 
-def predict_labels_cnn(input_data, meta_df, model, objects=True):
+def predict_labels_cnn(input_data, model, model_name):
     """
     Generate labels and probabilities from CNN and add to labels
     Args:
         input_data: Scaled input data formatted for input into CNN
-        geometry: Dataframe of storm patch geometry (including meta data)
         model: Convolutional Neural Network (CNN) Model
+        model_name: (str)
     Returns:
-        Dataframe with appended new CNN labels
+        Dataframe of CNN labels
     """
-    df = meta_df.copy()
-    preds = model.predict(input_data)
-    df['label'] = -9999
-    df['label_int'] = preds.argmax(axis=1)
-    df['label_prob'] = preds.max(axis=1)
-    for i, label in enumerate(['QLCS', 'Supercell', 'Disorganized']):
-        df[label] = 0
-        df[f'{label}_prob'] = preds[:, i]
-        df.loc[df['label_int'] == i, 'label'] = label
-        df.loc[df['label_int'] == i, label] = 1
-    if objects:
-        df.insert(1, 'forecast_hour', ((df['time'] - df['run_date']) / pd.Timedelta(hours=1)).astype('int32'))
+
+    mode_prob_labels = [f'{model_name}_{x}_prob' for x in ['QLCS', 'Supercell', 'Disorganized']]
+    max_prob_label = f'{model_name}_label_prob'
+    label = f'{model_name}_label'
+    cols = mode_prob_labels + [max_prob_label] + [label]
+    df = pd.DataFrame(index=range(len(input_data)), columns=cols, dtype='float32')
+    df.loc[:, mode_prob_labels] = model.predict(input_data)
+    df.loc[:, max_prob_label] = df.loc[:, mode_prob_labels].max(axis=1)
+    max_mode = df.loc[:, mode_prob_labels].idxmax(axis=1)
+    df.loc[:, label] = max_mode.apply(lambda x: x.split('_')[-2])
+
     return df
 
-def predict_labels_dnn(input_data, scale_values, model, input_vars, meta_vars):
+
+def predict_labels_dnn(input_data, scale_values, model, input_vars, model_name):
     """ Generate labels and probabilities from DNN and add to labels
      Args:
         input_data (df): Hagelslag csv output
         scale_values (dict): Dictionary of Column names and scale values for StandardScaler()
         model: Loaded Tensorflow model
         input_vars (list): input variables to model
-        meta_vars (list): List of meta variables to include
+        model_name: (str)
     Returns:
         Dataframe of labels, probabilities, and meta data.
      """
     scaler = StandardScaler()
     scaler.mean_ = scale_values['mean']
     scaler.scale_ = scale_values['std']
-    df = pd.DataFrame(model.predict(scaler.transform(input_data[input_vars])),
-                      columns=["QLCS_prob", "Supercell_prob", "Disorganized_prob"])
-    df['label_int'] = df.values.argmax(axis=1)
-    for i, label in enumerate(['QLCS', 'Supercell', 'Disorganized']):
-        df.loc[df['label_int'] == i, 'label'] = label
-    df_w_meta = pd.concat([input_data[meta_vars], df], axis=1)
-    df_w_meta.rename(columns={x: x.lower() for x in meta_vars}, inplace=True)
-    df_w_meta.rename(columns={'valid_date': 'time'}, inplace=True)
 
-    return df_w_meta
+    mode_prob_labels = [f'{model_name}_{x}_prob' for x in ['QLCS', 'Supercell', 'Disorganized']]
+    max_prob_label = f'{model_name}_label_prob'
+    label = f'{model_name}_label'
+    cols = mode_prob_labels + [max_prob_label] + [label]
+    df = pd.DataFrame(index=range(len(input_data)), columns=cols, dtype='float32')
+    df.loc[:, mode_prob_labels] = model.predict(scaler.transform(input_data[input_vars]))
+    df.loc[:, max_prob_label] = df.loc[:, mode_prob_labels].max(axis=1)
+    max_mode = df.loc[:, mode_prob_labels].idxmax(axis=1)
+    df.loc[:, label] = max_mode.apply(lambda x: x.split('_')[-2])
+
+    return df
+
+
+def merge_labels(labeled_data, storm_data, meta_vars, storm_vars):
+    """
+
+    Args:
+        labeled_data: Dictionary of pandas dataframes of labeled output from models
+        storm_data: Dataframe of tabular output from Hagelslag
+        meta_vars: List of meta variables to merge
+        storm_vars: Additional storm variables from hagelslag to keep
+
+    Returns:
+        Merged dataframe with labels, meta, and storm variables
+    """
+    labels = pd.concat([df for df in labeled_data.values()], axis=1)
+    meta_df = storm_data.loc[:, meta_vars]
+    storm_df = storm_data.loc[:, storm_vars]
+    all_data = pd.concat([meta_df, storm_df, labels], axis=1)
+
+    return all_data.astype({x: 'datetime64' for x in meta_vars if 'Date' in x})
+
 
 def lon_to_web_mercator(lon):
     """
