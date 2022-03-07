@@ -16,6 +16,7 @@ run_start_date: "2019-05-01"
 run_end_date: "2019-06-01"
 run_freq: "daily"
 output_format: "parquet"
+output_path: "/glade/scratch/cbecker/HWT_2022_HRRR_labels_test/"
 bin_width: null # ML probability bins
 proj_str: "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +a=6371229 +b=6371229"
 models:

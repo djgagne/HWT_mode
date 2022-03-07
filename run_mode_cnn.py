@@ -5,7 +5,7 @@ from os import makedirs, path
 import pandas as pd
 import joblib
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, get_meta_scalars, predict_labels_gmm, \
-    predict_labels_cnn, predict_labels_dnn, save_labels
+    predict_labels_cnn, predict_labels_dnn, save_labels, merge_labels
 from hwtmode.process import fetch_storm_reports, generate_obs_grid, generate_mode_grid
 from hwtmode.models import load_conv_net
 from hwtmode.evaluation import bss, brier_score
@@ -67,7 +67,7 @@ def main():
                                                             config["data_path"],
                                                             model_dict[model_name]["input_variables"],
                                                             model_dict[model_name]["output_variables"],
-                                                            config["meta_variables"],
+                                                            config["patch_meta_variables"],
                                                             model_dict[model_name]["patch_radius"])
 
                 input_combined = combine_patch_data(input_data, model_dict[model_name]["input_variables"])
@@ -88,14 +88,12 @@ def main():
                     gmms[model_name] = joblib.load(join(f"{model_path}_GMM_1.mod"))
                     cluster_assignments = joblib.load(join(model_path, f'{model_name}_GMM_1_gmm_labels.dict'))
 
-                    labels[model_name] = predict_labels_gmm(neuron_activations[model_name], neuron_columns, gmms[model_name],
-                                                            cluster_assignments)
-                    labels[model_name] = pd.merge(labels[model_name], meta_df)
+                    labels[model_name] = predict_labels_gmm(neuron_activations[model_name], gmms[model_name],
+                                                            model_name, cluster_assignments)
 
                 elif model_type == 'supervised':
 
-                    labels[model_name] = predict_labels_cnn(input_scaled, meta_df, models[model_name])
-                    labels[model_name] = pd.merge(labels[model_name], meta_df)
+                    labels[model_name] = predict_labels_cnn(input_scaled, models[model_name], model_name)
 
             elif model_type == 'supervised_DNN':
                 models[model_name] = load_model(join(model_dict[model_name]['model_path'], f"{model_name}.h5"),
@@ -106,54 +104,50 @@ def main():
                     scale_values = yaml.load(config_file, Loader=yaml.Loader)
                 labels[model_name] = predict_labels_dnn(storm_data, scale_values, models[model_name],
                                                         model_dict[model_name]["input_variables"],
-                                                        ['Valid_Date', 'Forecast_Hour', 'Centroid_Lon', 'Centroid_Lat',
-                                                         'Track_ID', 'Step_ID', 'Run_Date'])
+                                                        model_name)
 
-            labels[model_name][config["agg_variables"]] = pd.merge(labels[model_name], storm_data,
-                                                                   on=labels[model_name].index)[config["agg_variables"]]
-            file_name = join(model_dict[model_name]["model_path"], "labels",
-                                       f"{model_name}_labels_{date_str}_HRRR_hourly.{config['output_format']}")
-            save_labels(labels=labels[model_name],
-                        file_path=file_name,
-                        format=config["output_format"])
+    all_labels = merge_labels(labels, storm_data, config["csv_meta_variables"], config["storm_variables"])
+    save_labels(all_labels, config['run_start_date'], config['run_end_date'],
+                config['run_freq'], config['output_path'], config['output_format'])
 
-            if args.eval:
-                storm_report_path = config["storm_report_path"]
-                if not path.exists(storm_report_path):
-                    makedirs(storm_report_path, exist_ok=False)
-                start_date =(pd.Timestamp(config["run_start_date"], tz="UTC")).strftime("%Y%m%d0000")
-                end_date = (pd.Timestamp(config["run_end_date"], tz="UTC")).strftime("%Y%m%d0000")
-                for report_type in ['filtered_torn', 'filtered_hail', 'filtered_wind']:
-                    print(f'Downloading SPC storm reports from {start_date} through {end_date} for {report_type}')
-                    fetch_storm_reports(start_date, end_date, storm_report_path, report_type)
 
-                if not isfile(join(model_dict[model_name]["model_path"], "labels", f"obs_{date_str}_HRRR_hourly.nc")):
-                    print(f'Aggregating storm reports to a grid.')
-                    obs = generate_obs_grid(beg=start_date,
-                                            end=end_date,
-                                            storm_report_path=storm_report_path,
-                                            model_grid_path=config["model_grid_path"],
-                                            proj_str=config["proj_str"])
-                    file_name = join(model_dict[model_name]["model_path"], "labels", f"obs_{date_str}_HRRR_hourly.nc")
-                    obs.to_netcdf(file_name)
-                    print(f"Wrote {file_name}.")
+    if args.eval:
+        storm_report_path = config["storm_report_path"]
+        if not path.exists(storm_report_path):
+            makedirs(storm_report_path, exist_ok=False)
+        start_date =(pd.Timestamp(config["run_start_date"], tz="UTC")).strftime("%Y%m%d0000")
+        end_date = (pd.Timestamp(config["run_end_date"], tz="UTC")).strftime("%Y%m%d0000")
+        for report_type in ['filtered_torn', 'filtered_hail', 'filtered_wind']:
+            print(f'Downloading SPC storm reports from {start_date} through {end_date} for {report_type}')
+            fetch_storm_reports(start_date, end_date, storm_report_path, report_type)
 
-                print("Aggregating storm mode labels to a grid.")
-                print(config["bin_width"])
-                data = generate_mode_grid(beg=start_date,
-                                          end=end_date,
-                                          labels=labels[model_name],
-                                          model_grid_path=config["model_grid_path"],
-                                          min_lead_time=1,
-                                          max_lead_time=24,
-                                          proj_str=config["proj_str"],
-                                          run_date_freq='1d',
-                                          bin_width=config["bin_width"])
+        if not isfile(join(model_dict[model_name]["model_path"], "labels", f"obs_{date_str}_HRRR_hourly.nc")):
+            print(f'Aggregating storm reports to a grid.')
+            obs = generate_obs_grid(beg=start_date,
+                                    end=end_date,
+                                    storm_report_path=storm_report_path,
+                                    model_grid_path=config["model_grid_path"],
+                                    proj_str=config["proj_str"])
+            file_name = join(model_dict[model_name]["model_path"], "labels", f"obs_{date_str}_HRRR_hourly.nc")
+            obs.to_netcdf(file_name)
+            print(f"Wrote {file_name}.")
 
-                file_name = join(model_dict[model_name]["model_path"], "labels",
-                                 f"{config['physical_model']}_{model_name}_gridded_labels_{date_str}_HRRR_hourly.nc")
-                data.to_netcdf(file_name)
-                print(f"Wrote {file_name}.")
+        print("Aggregating storm mode labels to a grid.")
+        print(config["bin_width"])
+        data = generate_mode_grid(beg=start_date,
+                                  end=end_date,
+                                  labels=labels[model_name],
+                                  model_grid_path=config["model_grid_path"],
+                                  min_lead_time=1,
+                                  max_lead_time=24,
+                                  proj_str=config["proj_str"],
+                                  run_date_freq='1d',
+                                  bin_width=config["bin_width"])
+
+        file_name = join(model_dict[model_name]["model_path"], "labels",
+                         f"{config['physical_model']}_{model_name}_gridded_labels_{date_str}_HRRR_hourly.nc")
+        data.to_netcdf(file_name)
+        print(f"Wrote {file_name}.")
     return
 
 

@@ -1,5 +1,6 @@
 import xarray as xr
 import numpy as np
+from os import makedirs
 from os.path import exists, join
 from glob import glob
 from tqdm import tqdm
@@ -196,9 +197,9 @@ def predict_labels_gmm(neuron_acts, gmm_model, model_name, cluster_dict):
     label = f'{model_name}_label'
     cols = clust_prob_labels + mode_prob_labels + [max_prob_label] + [label]
 
-    df = pd.DataFrame(index=range(len(input_data)), columns=cols, dtype='float32')
+    df = pd.DataFrame(index=range(len(neuron_acts)), columns=cols, dtype='float32')
     df.loc[:, clust_prob_labels] = gmm_model.predict_proba(
-        df.loc[:, neuron_acts.columns.str.contains('neuron_')])
+        neuron_acts.loc[:, neuron_acts.columns.str.contains('neuron_')])
     for key in cluster_dict.keys():
         df[f'{model_name}_{key}_prob'] = df[[f'{model_name}_cluster_{x}_prob' for x in cluster_dict[key]]].sum(axis=1)
     df.loc[:, max_prob_label] = df.loc[:, mode_prob_labels].max(axis=1)
@@ -494,19 +495,30 @@ def load_gridded_data(data_path, physical_model, run_date, forecast_hour, input_
         return all_ds.load()
 
 
-def save_labels(labels, file_path, format):
+def save_labels(labels, start_date, end_date, freq, out_path, format):
     """
     Save storm mode labels to parquet or csv file.
     Args:
         labels: Pandas dataframe of storm mode labels
-        file_path: Path to be saved to
+        start_date: start date from config
+        end_date: end date from config
+        freq: 'Run_date' frequency at which to chunk and save data out
+        out_path: Path to save labels to
         format: File format (accepts 'csv' or 'parquet')
     Returns:
     """
-    if format == 'csv':
-        labels.to_csv(file_path, index_label=False)
-    elif format == 'parquet':
-        labels.to_parquet(file_path)
-    else:
-        raise ValueError(f'File format {format} not found. Please use "parquet" or "csv"')
-    print(f'Wrote {file_path}.')
+
+    makedirs(out_path, exist_ok=True)
+    for date in pd.date_range(start_date, end_date, freq=freq[0]):
+        df_sub = labels.loc[labels['Run_Date'] == date]
+        if len(df_sub) == 0:
+            continue
+        date_str = date.strftime("%Y-%m-%d_%H%M")
+        file_name = join(out_path, f'model_labels_{date_str}.{format}')
+        if format == 'csv':
+            df_sub.to_csv(file_name, index_label=False)
+        elif format == 'parquet':
+            df_sub.to_parquet(file_name)
+        else:
+            raise ValueError(f'File format {format} not found. Please use "parquet" or "csv"')
+        print(f'Wrote {file_name}.')
