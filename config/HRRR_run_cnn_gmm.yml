@@ -17,17 +17,19 @@ run_end_date: "2019-06-01"
 run_freq: "daily"
 output_format: "parquet"
 output_path: "/glade/scratch/cbecker/HWT_2022_HRRR_labels_test/"
+min_lead_time: 1
+max_lead_time: 35
 bin_width: null # ML probability bins
 proj_str: "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +a=6371229 +b=6371229"
 models:
   semi_supervised:
-    CNN_1:
+    SS_2:
       model_path: "/glade/scratch/cbecker/HWT_20220111_REFLUH_copy2/"
       patch_radius: 32
       input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
       output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
   supervised:
-    cnn_test_000:
+    CNN_1:
       model_path: "/glade/scratch/cbecker/HWT_supervised_copy/"
       patch_radius: 32
       input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]

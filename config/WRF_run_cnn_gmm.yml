@@ -1,29 +1,32 @@
 data_path: "/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_COM_hyst_nc/"
-physical_model: "WRF" # patch data type derived from "data_path"
 csv_model_prefix: "track_step_NCARSTORM_d01_"
 storm_report_path: "/glade/work/cbecker/SPC_storm_reports/"
 model_grid_path: '/glade/work/cbecker/HWT_mode/model_grids/NCEP_211_grid.nc'
-meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
+patch_meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 csv_meta_variables: ['Valid_Date', 'Run_Date', 'Forecast_Hour', 'Step_ID', 'Track_ID',
                       'Duration', 'Centroid_Lon', 'Centroid_Lat']
 storm_variables: ["UP_HELI_MAX_max", "USHR6-potential_mean", "VSHR6-potential_mean",
                 "MLCAPE-potential_max", "MLCAPE-potential_mean"]
+physical_model: "WRF" # patch data type derived from "data_path"
 run_start_date: "2013-05-01"
 run_end_date: "2013-06-01"
 run_freq: "daily"
 output_format: "parquet"
+output_path: "/glade/scratch/cbecker/HWT_2022_HRRR_labels_test/"
+min_lead_time: 1
+max_lead_time: 35
 bin_width: 0.2 # ML probability bins
 proj_str: "+proj=lcc +lat_0=38.336433 +lon_0=-101 +lat_1=32 +lat_2=46 +a=6370000 +b=6370000"
 models:
   semi_supervised:
-    CNN_1:
+    SS_2:
       model_path: "/glade/scratch/cbecker/HWT_20220111_REFLUH_copy2/"
       patch_radius: 32
       input_variables: ["REFL_COM_curr", "UP_HELI_MAX_curr"]
       output_variables: ["UP_HELI_MAX_curr"]
   supervised:
-    cnn_test_000:
+    CNN_1:
       model_path: "/glade/scratch/cbecker/HWT_supervised_copy/"
       patch_radius: 32
       input_variables: ["REFL_COM_curr", "UP_HELI_MAX_curr"]
