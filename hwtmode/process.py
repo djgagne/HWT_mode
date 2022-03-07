@@ -82,27 +82,31 @@ def combine_storm_reports(start_date, end_date, out_dir, report_type):
     return df
 
 
-def generate_obs_grid(beg, end, storm_report_path, model_grid_path, proj_str):
+def generate_obs_grid(labels, storm_report_path, model_grid_path, proj_str):
     """
     Generate Xarray dataset (Time, x, y) of observed storm reports. Each hazard is stored as a seperate variable. Valid time is separted by hour. Minimum and maximum
     lead times are used for ensembled HRRR runs.
     Args:
-        beg (str): Beginning of date range (format: YYMMDDhhmm)
-        end (str): End of date range (format: YYMMDDhhmm)
+        labels: Dataframe of labels
         storm_report_path: Path to downloaded storm reports
         model_grid_path: Path to coarse grid
+        proj_str: Projection string for physical model
     Returns:
         Xarray dataset (Time, x, y) of storm report counts. Different hazards represented as variables.
     """
+
     grid = xr.open_dataset(model_grid_path)
-    valid_dates = pd.date_range(pd.Timestamp(beg), pd.Timestamp(end), freq='1h', closed='right')
+    for coord in ['lon', 'lat']:
+        grid[coord].values = grid[coord].astype('float32')
+    valid_dates = pd.date_range(labels['Valid_Date'].min(), labels['Valid_Date'].max(), freq='1h')
+
     obs_list = []
 
     for report_type in ['filtered_torn', 'filtered_wind', 'filtered_hail']:
 
         ds_list = []
 
-        obs = combine_storm_reports(beg, end, storm_report_path, report_type)
+        obs = combine_storm_reports(valid_dates.min(), valid_dates.max(), storm_report_path, report_type)
 
         for valid_date in valid_dates:
 
@@ -123,74 +127,78 @@ def generate_obs_grid(beg, end, storm_report_path, model_grid_path, proj_str):
     return xr.merge(obs_list)
 
 
-def generate_mode_grid(beg, end, labels, model_grid_path, min_lead_time, max_lead_time, proj_str, run_date_freq='1h',
-                       bin_width=None):
+def generate_mode_grid(labels, model_grid_path, models, min_lead_time, max_lead_time, proj_str, bin_width=None):
     """
-    Convert tabular ML storm mode predictions and probabilites to a coarse gridded product (Xarray dataset) with dimentions (Time, y, x) and associated
-    neighborhood probabilities. Supports a storm surrogate probability function (SSPF) by using min/max lead times.
+    Convert tabular ML storm mode predictions and probabilites to a coarse gridded product (Xarray dataset)
+    with dimentions (Time, y, x) and associated neighborhood probabilities.
+    Supports a storm surrogate probability function (SSPF) by using min/max lead times.
     Args:
-        beg: Beginning of date range (format: 'YYMMDDhhmm')
-        end: End of date range (format: 'YYMMDDhhmm')
-        label_path: Path to labels/ predictions
-        model: Model name (encoded into label files)
+        labels: Dataframe of model predictions
         model_grid_path: Path to coarse grid
-        min_lead_time: Minimum leadtime for overlapping ensembles produced by HRRR
-        max_lead_time: Maximum lead time for over lapping ensembled produced by HRRR
+        models: Dictionary of models
+        min_lead_time: Minimum leadtime for overlapping ensembles
+        max_lead_time: Maximum lead time for over lapping ensembles
         proj_str (str): Projection string
-        run_date_freq: Frequency spacing of model run times ('{X}h', '{x}d', ...)
         bin_width: Width of bins for ML probabilities
     Returns:
         Xarray dataset (Time, x, y) of storm object counts. Different modes represented as variables.
     """
 
     storm_grid = xr.open_dataset(model_grid_path)
-    valid_dates = pd.date_range(pd.Timestamp(beg) + pd.Timedelta(hours=1), pd.Timestamp(end), freq='1h')
+    for coord in ['lon', 'lat']:
+        storm_grid[coord].values = storm_grid[coord].astype('float32')
+    valid_dates = pd.date_range(labels['Valid_Date'].min(), labels['Valid_Date'].max(), freq='1h')
     df_storms, storm_indxs = {}, {}
     df_list, ds_list = [], []
 
     for valid_date in valid_dates:
-        d_sub = labels[labels['time'] == valid_date]
+        d_sub = labels[(labels['Valid_Date'] == valid_date)]
+        d_sub = d_sub[(d_sub['Forecast_Hour'] >= min_lead_time) & (d_sub['Forecast_Hour'] <= max_lead_time)]
         ds = storm_grid.expand_dims('time').assign_coords(valid_time=('time', [valid_date]))
 
         for storm_type in ['Supercell', 'QLCS', 'Disorganized']:
+            for model in models.keys():
+                model_mode = f'{model}_{storm_type}'
 
-            df_storms[storm_type] = d_sub[d_sub['label'] == storm_type]
+                df_storms[model_mode] = d_sub[d_sub[f'{model}_label'] == storm_type]
 
-            storm_indxs[storm_type] = find_coord_indices(ds['lon'].values,
-                                                         ds['lat'].values,
-                                                         df_storms[storm_type]['centroid_lon'],
-                                                         df_storms[storm_type]['centroid_lat'],
-                                                         proj_str)
-            ds[storm_type] = ds['lat'] * 0
-            for i in storm_indxs[storm_type]:
-                ds[storm_type][i[0], i[1]] += 1
+                storm_indxs[model_mode] = find_coord_indices(ds['lon'].values,
+                                                             ds['lat'].values,
+                                                             df_storms[model_mode]['Centroid_Lon'],
+                                                             df_storms[model_mode]['Centroid_Lat'],
+                                                             proj_str)
 
-            ds = compute_neighborhood_prob(ds, storm_type)
-            ds[storm_type].attrs['Description'] = f'Categorical Classification of {storm_type}'
-            ds[storm_type + '_nprob'].attrs['Description'] = f'Neighborhood Probabilities for {storm_type}'
+                ds[model_mode] = (ds['lat'] * 0).astype('int8')
+                for i in storm_indxs[model_mode]:
+                    ds[model_mode][i[0], i[1]] += 1
 
-            if bin_width is not None:
+                ds = compute_neighborhood_prob(ds, model_mode)
+                ds[model_mode].attrs['Description'] = f'Categorical Classification of {storm_type}'
+                ds[model_mode + '_nprob'].attrs['Description'] = f'Neighborhood Probabilities for {storm_type}'
 
-                bins = np.arange(0, 1 + bin_width, bin_width)
-                for indx in range(len(bins) - 1):
-                    low, high = bins[indx], bins[indx + 1]
-                    full_name = f'{storm_type}_{int(low * 100)}_{int(high * 100)}'
-                    df_storms[full_name] = d_sub[
-                        (d_sub[f'{storm_type}_prob'] > low) & (d_sub[f'{storm_type}_prob'] <= high)]
+                if bin_width is not None:
 
-                    storm_indxs[full_name] = find_coord_indices(ds['lon'].values,
-                                                                ds['lat'].values,
-                                                                df_storms[full_name]['centroid_lon'],
-                                                                df_storms[full_name]['centroid_lat'],
-                                                                proj_str)
-                    ds[full_name] = ds['lat'] * 0
-                    for i in storm_indxs[full_name]:
-                        ds[full_name][i[0], i[1]] += 1
+                    bins = np.arange(0, 1 + bin_width, bin_width)
+                    for indx in range(len(bins) - 1):
+                        low, high = bins[indx], bins[indx + 1]
+                        full_name = f'{model_mode}_{int(low * 100)}_{int(high * 100)}'
+                        df_storms[full_name] = d_sub[
+                            (d_sub[f'{model_mode}_prob'] > low) & (d_sub[f'{model_mode}_prob'] <= high)]
 
-                    ds = compute_neighborhood_prob(ds, full_name)
-                    ds[full_name].attrs['ML Prob Bin'] = f'{low} - {high} for {storm_type}'
-                    ds[full_name + '_nprob'].attrs[
-                        'Description'] = f'Neighborhood probabilities for ML probabilities in the ({low} - {high}) range for {storm_type}'
+                        storm_indxs[full_name] = find_coord_indices(ds['lon'].values,
+                                                                    ds['lat'].values,
+                                                                    df_storms[full_name]['Centroid_Lon'],
+                                                                    df_storms[full_name]['Centroid_Lat'],
+                                                                    proj_str)
+                        ds[full_name] = (ds['lat'] * 0).astype('int8')
+                        for i in storm_indxs[full_name]:
+                            ds[full_name][i[0], i[1]] += 1
+
+                        ds = compute_neighborhood_prob(ds, full_name)
+                        ds[full_name].attrs['ML Prob Bin'] = f'{low} - {high} for {storm_type}'
+                        ds[full_name + '_nprob'].attrs['Description'] = f'Neighborhood probabilities' \
+                                                                        f' for ML probabilities in the ' \
+                                                                        f'({low} - {high}) range for {storm_type}'
 
         ds_list.append(ds)
 
@@ -211,10 +219,10 @@ def compute_neighborhood_prob(ds, var, sigma=1, use_binary=True):
     """
     if use_binary:
         ds[var] = ds[var].expand_dims('time')
-        ds[f'{var}_nprob'] = ds[var].where(ds[var] <= 1, 1).groupby('time').apply(gaussian_filter, sigma=sigma)
+        ds[f'{var}_nprob'] = ds[var].astype('float32').where(ds[var] <= 1, 1).groupby('time').apply(gaussian_filter, sigma=sigma)
     else:
         ds[var] = ds[var].expand_dims('time')
-        ds[f'{var}_nprob'] = ds[var].groupby('time').apply(gaussian_filter, sigma=sigma)
+        ds[f'{var}_nprob'] = ds[var].astype('float32').groupby('time').apply(gaussian_filter, sigma=sigma)
 
     return ds
 

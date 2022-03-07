@@ -495,30 +495,68 @@ def load_gridded_data(data_path, physical_model, run_date, forecast_hour, input_
         return all_ds.load()
 
 
-def save_labels(labels, start_date, end_date, freq, out_path, format):
+def save_labels(labels, freq, out_path, file_format):
     """
     Save storm mode labels to parquet or csv file.
     Args:
         labels: Pandas dataframe of storm mode labels
-        start_date: start date from config
-        end_date: end date from config
         freq: 'Run_date' frequency at which to chunk and save data out
         out_path: Path to save labels to
-        format: File format (accepts 'csv' or 'parquet')
+        file_format: File format (accepts 'csv' or 'parquet')
     Returns:
     """
 
-    makedirs(out_path, exist_ok=True)
-    for date in pd.date_range(start_date, end_date, freq=freq[0]):
+    for date in pd.date_range(labels['Run_Date'].min(), labels['Run_Date'].max(), freq=freq[0]):
         df_sub = labels.loc[labels['Run_Date'] == date]
         if len(df_sub) == 0:
             continue
         date_str = date.strftime("%Y-%m-%d_%H%M")
-        file_name = join(out_path, f'model_labels_{date_str}.{format}')
-        if format == 'csv':
+        file_name = join(out_path, f'model_labels_{date_str}.{file_format}')
+        if file_format == 'csv':
             df_sub.to_csv(file_name, index_label=False)
-        elif format == 'parquet':
+        elif file_format == 'parquet':
             df_sub.to_parquet(file_name)
         else:
-            raise ValueError(f'File format {format} not found. Please use "parquet" or "csv"')
+            raise ValueError(f'File format {file_format} not found. Please use "parquet" or "csv"')
         print(f'Wrote {file_name}.')
+
+
+def save_neighborhood_probs(data, out_path, file_format='parquet'):
+    """
+    Args:
+        data: Aggregated netCDF file with neighborhood probability values
+        out_path: Base path to save
+        file_format: File format to save tabular results
+
+    Returns:
+    """
+
+    prob_vars = ['valid_time', 'lon', 'lat'] + [x for x in data.data_vars if 'nprob' in x]
+
+    for valid_i, valid_time in enumerate(sorted(np.unique(data['valid_time'].values))):
+
+        time = pd.Timestamp(valid_time).strftime("%Y-%m-%d_%H%M")
+        ds = data[prob_vars].isel(time=valid_i)
+        df = ds.to_dataframe(dim_order=('y', 'x')).reset_index()
+        ds.to_netcdf(join(out_path, f'neighborhood_probabilities_{time}.nc'))
+        tabular_file_name = join(out_path, f'neighborhood_probabilities_{time}.{file_format}')
+        if file_format == 'csv':
+            df.to_csv(join(out_path, tabular_file_name, index_label=False))
+        elif file_format == 'parquet':
+            df.to_parquet(join(out_path, tabular_file_name))
+        else:
+            raise ValueError(f'File format {file_format} not found. Please use "parquet" or "csv"')
+    return
+
+def save_gridded_reports(data, out_path):
+    """
+    Args:
+        data: netCDF of storm reports
+        out_path: Base path to save
+    Returns:
+    """
+    for valid_i, valid_time in enumerate(sorted(np.unique(data['valid_time'].values))):
+        time = pd.Timestamp(valid_time).strftime("%Y-%m-%d_%H%M")
+        ds = data.isel(Time=valid_i)
+        ds.to_netcdf(join(out_path, f'storm_reports_{time}.nc'))
+    return
