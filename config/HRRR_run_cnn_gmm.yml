@@ -1,4 +1,4 @@
-data_path: "/glade/scratch/cbecker/HRRR_objects/20220228/201905_201906_daily/track_data_hrrr_3km_nc/"
+data_path: "/glade/scratch/cbecker/HRRR_objects/20220309/201905_201906_hourly/track_data_hrrr_3km_nc/"
 csv_model_prefix: "track_step_HRRR-ZARR_oper_"
 patch_meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
@@ -12,22 +12,35 @@ storm_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max",
 physical_model: "HRRR" # patch data type derived from "data_path"
 storm_report_path: "/glade/work/cbecker/SPC_storm_reports/"
 model_grid_path: '/glade/work/cbecker/HWT_mode/model_grids/NCEP_211_grid.nc'
-run_start_date: "2019-05-01"
-run_end_date: "2019-06-01"
-run_freq: "daily"
-output_format: "parquet"
-output_path: "/glade/scratch/cbecker/HWT_2022_HRRR_labels_test/"
+run_start_date: "2019-05-19"
+run_end_date: "2019-05-22"
+run_freq: "hourly"
+output_format: "csv"
+output_path: "/glade/scratch/cbecker/HWT_2022_HRRR_labels_201905_hourly_0314/"
 min_lead_time: 1
-max_lead_time: 35
+max_lead_time: 17
 bin_width: null # ML probability bins
 proj_str: "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +a=6371229 +b=6371229"
 models:
   semi_supervised:
     SS_2:
       model_path: "/glade/scratch/cbecker/HWT_20220111_REFLUH_copy2/"
+      label_dict: 'GMM_1_gmm_labels.dict'
       patch_radius: 32
       input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
       output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
+    SS1:
+      model_path: "/glade/scratch/cbecker/HWT_multi_output/"
+      label_dict: 'GMM_1_gmm_labels.dict'
+      patch_radius: 32
+      input_variables: [ "REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
+      output_variables: [ "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
+    SS2:
+      model_path: "/glade/scratch/cbecker/HWT_multi_output/"
+      label_dict: 'GMM_1_gmm_labels.dict'
+      patch_radius: 32
+      input_variables: [ "REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
+      output_variables: [ "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
   supervised:
     CNN_1:
       model_path: "/glade/scratch/cbecker/HWT_supervised_copy/"

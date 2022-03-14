@@ -8,6 +8,7 @@ import s3fs
 import joblib
 from pyproj import Proj
 from scipy.spatial.distance import cdist
+from hwtmode.data import load_labels
 
 def find_coord_indices(lon_array, lat_array, lon_points, lat_points, proj_str):
     """
@@ -43,7 +44,7 @@ def fetch_storm_reports(start_date, end_date, out_dir, report_type):
         report_type (str): SPC extention for specific report type (Ex. 'filtered_torn', 'hail', filtered_wind')
     """
 
-    dates = pd.date_range(start_date, end_date).strftime('%y%m%d')
+    dates = pd.date_range(start_date, end_date)#.strftime('%y%m%d')
     for date in dates:
         if isfile(join(out_dir, f'{date}_{report_type}.csv')):
             continue
@@ -82,12 +83,13 @@ def combine_storm_reports(start_date, end_date, out_dir, report_type):
     return df
 
 
-def generate_obs_grid(labels, storm_report_path, model_grid_path, proj_str):
+def generate_obs_grid(start_date, end_date, storm_report_path, model_grid_path, proj_str):
     """
     Generate Xarray dataset (Time, x, y) of observed storm reports. Each hazard is stored as a seperate variable. Valid time is separted by hour. Minimum and maximum
     lead times are used for ensembled HRRR runs.
     Args:
-        labels: Dataframe of labels
+        start_date:
+        end_date:
         storm_report_path: Path to downloaded storm reports
         model_grid_path: Path to coarse grid
         proj_str: Projection string for physical model
@@ -98,7 +100,7 @@ def generate_obs_grid(labels, storm_report_path, model_grid_path, proj_str):
     grid = xr.open_dataset(model_grid_path)
     for coord in ['lon', 'lat']:
         grid[coord].values = grid[coord].astype('float32')
-    valid_dates = pd.date_range(labels['Valid_Date'].min(), labels['Valid_Date'].max(), freq='1h')
+    valid_dates = pd.date_range(start_date, end_date, freq='1h')
 
     obs_list = []
 
@@ -110,7 +112,7 @@ def generate_obs_grid(labels, storm_report_path, model_grid_path, proj_str):
 
         for valid_date in valid_dates:
 
-            ds = grid.expand_dims('time').rename({'time': 'Time'}).assign_coords(valid_time=('Time', [valid_date]))
+            ds = grid.expand_dims('time').assign_coords(valid_time=('time', [valid_date]))
             ds[report_type.split('_')[-1]] = ds['lat'] * 0
 
             obs_sub = obs[obs['Actual_Date'] == valid_date]
@@ -122,45 +124,34 @@ def generate_obs_grid(labels, storm_report_path, model_grid_path, proj_str):
                     continue
             ds_list.append(ds)
 
-        obs_list.append(xr.concat(ds_list, dim='Time'))
+        obs_list.append(xr.concat(ds_list, dim='time'))
 
     return xr.merge(obs_list)
 
 
-def generate_mode_grid(labels, model_grid_path, models, min_lead_time, max_lead_time, proj_str, bin_width=None):
-    """
-    Convert tabular ML storm mode predictions and probabilites to a coarse gridded product (Xarray dataset)
-    with dimentions (Time, y, x) and associated neighborhood probabilities.
-    Supports a storm surrogate probability function (SSPF) by using min/max lead times.
-    Args:
-        labels: Dataframe of model predictions
-        model_grid_path: Path to coarse grid
-        models: Dictionary of models
-        min_lead_time: Minimum leadtime for overlapping ensembles
-        max_lead_time: Maximum lead time for over lapping ensembles
-        proj_str (str): Projection string
-        bin_width: Width of bins for ML probabilities
-    Returns:
-        Xarray dataset (Time, x, y) of storm object counts. Different modes represented as variables.
-    """
+def get_neighborhood_probabilities(labels, model_grid_path, models, min_lead_time,
+                                   max_lead_time, proj_str, bin_width=None):
 
     storm_grid = xr.open_dataset(model_grid_path)
     for coord in ['lon', 'lat']:
         storm_grid[coord].values = storm_grid[coord].astype('float32')
-    valid_dates = pd.date_range(labels['Valid_Date'].min(), labels['Valid_Date'].max(), freq='1h')
+
     df_storms, storm_indxs = {}, {}
     df_list, ds_list = [], []
 
-    for valid_date in valid_dates:
-        d_sub = labels[(labels['Valid_Date'] == valid_date)]
-        d_sub = d_sub[(d_sub['Forecast_Hour'] >= min_lead_time) & (d_sub['Forecast_Hour'] <= max_lead_time)]
+    for valid_date in sorted(labels['Valid_Date'].unique()):
+
+        valid_labels = labels.loc[labels['Valid_Date'] == valid_date]
+        df = valid_labels.loc[
+            (valid_labels['Forecast_Hour'] >= min_lead_time) & (valid_labels['Forecast_Hour'] <= max_lead_time)]
+
         ds = storm_grid.expand_dims('time').assign_coords(valid_time=('time', [valid_date]))
 
         for storm_type in ['Supercell', 'QLCS', 'Disorganized']:
-            for model in models.keys():
+            for model in models:
                 model_mode = f'{model}_{storm_type}'
 
-                df_storms[model_mode] = d_sub[d_sub[f'{model}_label'] == storm_type]
+                df_storms[model_mode] = df[df[f'{model}_label'] == storm_type]
 
                 storm_indxs[model_mode] = find_coord_indices(ds['lon'].values,
                                                              ds['lat'].values,
@@ -182,8 +173,8 @@ def generate_mode_grid(labels, model_grid_path, models, min_lead_time, max_lead_
                     for indx in range(len(bins) - 1):
                         low, high = bins[indx], bins[indx + 1]
                         full_name = f'{model_mode}_{int(low * 100)}_{int(high * 100)}'
-                        df_storms[full_name] = d_sub[
-                            (d_sub[f'{model_mode}_prob'] > low) & (d_sub[f'{model_mode}_prob'] <= high)]
+                        df_storms[full_name] = df[
+                            (df[f'{model_mode}_prob'] > low) & (df[f'{model_mode}_prob'] <= high)]
 
                         storm_indxs[full_name] = find_coord_indices(ds['lon'].values,
                                                                     ds['lat'].values,
