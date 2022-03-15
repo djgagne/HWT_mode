@@ -8,7 +8,6 @@ import s3fs
 import joblib
 from pyproj import Proj
 from scipy.spatial.distance import cdist
-from hwtmode.data import load_labels
 
 def find_coord_indices(lon_array, lat_array, lon_points, lat_points, proj_str):
     """

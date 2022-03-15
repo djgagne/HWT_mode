@@ -12,7 +12,6 @@ import xarray as xr
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from scipy.ndimage.filters import gaussian_filter
-from .process import generate_mode_grid
 sns.set_style("darkgrid")
 
 def corr_coef_metric(y_true, y_pred):
