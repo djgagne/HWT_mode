@@ -9,6 +9,5 @@
 #SBATCH --output=hsdata_wrfrt.out
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=cbecker@ucar.edu
-#export PATH="/glade/u/home/dgagne/miniconda3/envs/goes/bin:$PATH"
 conda activate hagelslag
-python -u /glade/scratch/cbecker/hagelslag/bin/hsdata /glade/work/cbecker/HWT_mode/config/HRRR_hagelslag.config -p 24
+python -u /glade/work/cbecker/hagelslag/bin/hsdata /glade/work/cbecker/HWT_mode/config/HRRR_hagelslag.config -p 24
