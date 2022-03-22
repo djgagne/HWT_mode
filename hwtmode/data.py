@@ -137,7 +137,7 @@ def get_storm_variables(start, end, data_path, csv_prefix, storm_vars):
     end_str = (pd.Timestamp(end, tz="UTC")).strftime("%Y%m%d-%H00")
     l = []
     for d in pd.date_range(start_str.replace('-', ''), end_str.replace('-', ''), freq='d'):
-        file_path = join(data_path.replace('_nc/', '_csv/'), f'{csv_prefix}{d.strftime("%Y%m%d-%H00")}.csv')
+        file_path = join(data_path.replace('_nc', '_csv'), f'{csv_prefix}{d.strftime("%Y%m%d-%H00")}.csv')
         if exists(file_path):
             df = pd.read_csv(file_path)
             l.append(df)
@@ -538,20 +538,16 @@ def load_labels(start, end, label_path, run_freq, file_format):
     return pd.concat(labels)
 
 
-def save_labels(labels, freq, out_path, file_format, min_lead_time, max_lead_time):
+def save_labels(labels, out_path, file_format):
     """
     Save storm mode labels to parquet or csv file.
     Args:
-        start_date: Starting run date
-        end_date: Ending run date
         labels: Pandas dataframe of storm mode labels
-        freq: 'Run_date' frequency at which to chunk and save data out
         out_path: Path to save labels to
         file_format: File format (accepts 'csv' or 'parquet')
     Returns:
     """
-    labels = labels.loc[(labels['Forecast_Hour'] >= min_lead_time) & (labels['Forecast_Hour'] <= max_lead_time)]
-    for date in pd.date_range(labels["Run_Date"].min(), labels["Run_Date"].max(), freq=freq[0]):
+    for date in pd.date_range(labels["Run_Date"].min(), labels["Run_Date"].max(), freq='h'):
         df_sub = labels.loc[labels['Run_Date'] == date]
         if len(df_sub) == 0:
             continue
@@ -566,17 +562,28 @@ def save_labels(labels, freq, out_path, file_format, min_lead_time, max_lead_tim
         print(f'Wrote {file_name}.')
 
 
-def save_neighborhood_probs(data, base_path, output_format):
+def save_gridded_labels(ds, base_path, tabular_format='csv'):
 
-    df = data.to_dataframe()
-    for vt in sorted(df['valid_time'].unique()):
-        df_sub = df.loc[df['valid_time'] == vt]
-        date_str = pd.to_datetime(vt).strftime("%Y-%m-%d_%H%M")
-        file_path = join(base_path, f"neighborhood_probabilities_{date_str}.{output_format}")
-        if output_format == 'parquet':
-            df_sub.to_parquet(join(base_path, date_str, file_path))
-        elif output_format == 'csv':
-            df_sub.to_csv(join(base_path, date_str, file_path), index=True)
+    run_date_str = pd.to_datetime(ds['init_time'].values).strftime('%Y%m%d%H00')
+    for run_date in run_date_str:
+        makedirs(join(base_path, run_date), exist_ok=True)
+
+    for i in range(ds.time.size):
+
+        data = ds.isel(time=i)
+        run_date = pd.to_datetime(data['init_time'].values).strftime('%Y%m%d%H00')
+        fh = data['forecast_hour'].values
+        data.to_netcdf(os.path.join(base_path, run_date, f"label_probabilities_{run_date}_fh_{fh:02d}.nc"))
+        data_tabular = data.to_dataframe()
+
+        if tabular_format == "csv":
+            data_tabular.to_csv(os.path.join(base_path, run_date,
+                                             f"label_probabilities_{run_date}_fh_{fh:02d}.{tabular_format}"),
+                                index=False)
+        elif tabular_format == "parquet":
+            data_tabular.to_csv(os.path.join(base_path, run_date,
+                                             f"label_probabilities_{run_date}_fh_{fh:02d}.{tabular_format}"))
+    return
 
 
 def save_gridded_reports(data, out_path):

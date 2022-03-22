@@ -5,7 +5,7 @@ from os import makedirs
 import pandas as pd
 import joblib
 from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, get_meta_scalars, predict_labels_gmm, \
-    predict_labels_cnn, predict_labels_dnn, save_labels, merge_labels, save_neighborhood_probs, load_labels
+    predict_labels_cnn, predict_labels_dnn, save_labels, merge_labels, save_gridded_labels, load_labels
 from hwtmode.process import get_neighborhood_probabilities
 from hwtmode.models import load_conv_net
 from hwtmode.evaluation import bss, brier_score
@@ -39,8 +39,9 @@ def main():
 
     l = []
     for d in pd.date_range(start_str.replace('-', ''), end_str.replace('-', ''), freq=config['run_freq'][0]):
-        file_path = join(config["data_path"].replace('_nc/', '_csv/'),
+        file_path = join(config["data_path"].replace('_nc', '_csv'),
                          f'{config["csv_model_prefix"]}{d.strftime("%Y%m%d-%H00")}.csv')
+        print(file_path)
         if exists(file_path):
             df = pd.read_csv(file_path)
             l.append(df)
@@ -84,9 +85,8 @@ def main():
                     neuron_activations[model_name].loc[:, neuron_columns] = \
                         models[model_name].output_hidden_layer(input_scaled.values)
 
-                    gmms[model_name] = joblib.load(join(f"{model_path}_GMM_1.mod"))
-                    cluster_assignments = joblib.load(join(model_path,
-                                                           f'{model_name}_{model_dict[model_name]["label_dict"]}'))
+                    gmms[model_name] = joblib.load(join(f"{model_path}_{model_dict[model_name]['gmm_name']}.mod"))
+                    cluster_assignments = joblib.load(join(model_path, f'{model_dict[model_name]["label_dict"]}'))
 
                     labels[model_name] = predict_labels_gmm(neuron_activations[model_name], gmms[model_name],
                                                             model_name, cluster_assignments)
@@ -108,12 +108,8 @@ def main():
 
     all_labels = merge_labels(labels, storm_data, config["csv_meta_variables"], config["storm_variables"])
     save_labels(labels=all_labels,
-                freq=config['run_freq'],
                 out_path=join(config['output_path'], "labels"),
-                file_format=config['output_format'],
-                min_lead_time=config["min_lead_time"],
-                max_lead_time=config["max_lead_time"])
-
+                file_format=config['output_format'])
 
     if args.eval:
 
@@ -130,15 +126,12 @@ def main():
 
         nprobs = get_neighborhood_probabilities(labels=labels,
                                                 model_grid_path=config["model_grid_path"],
-                                                models=model_names,
-                                                min_lead_time=config["min_lead_time"],
-                                                max_lead_time=config["max_lead_time"],
-                                                proj_str=config["proj_str"],
-                                                bin_width=config["bin_width"])
+                                                model_names=model_names,
+                                                proj_str=config["proj_str"])
 
-        save_neighborhood_probs(data=nprobs,
-                                base_path=join(config["output_path"], "evaluation"),
-                                output_format=config["output_format"])
+        save_gridded_labels(ds=nprobs,
+                            base_path=join(config["output_path"], "evaluation"),
+                            tabular_format=config["output_format"])
 
     return
 

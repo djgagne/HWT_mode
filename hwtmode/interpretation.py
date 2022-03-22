@@ -163,7 +163,7 @@ def cape_shear_modes(neuron_activations, output_path, data_path, mode, model_nam
         file_name = f'CAPE_Shear_{model_name}_{mode}.png'
     df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Value', col_type.capitalize()])
     cols = list(neuron_activations.columns[neuron_activations.columns.str.contains(col_type)])
-    csv_path = data_path.rstrip('/')[:-2] + 'csv'
+    csv_path = data_path.replace('nc', 'csv')
     
     dates = sorted(set(neuron_activations['run_date'].astype('datetime64[ns]')))
     file_strings = [join(csv_path, f'track_step_NCARSTORM_d01_{x.strftime("%Y%m%d")}-0000.csv') for x in dates]
