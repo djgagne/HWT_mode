@@ -1,5 +1,6 @@
 import os
-from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars
+from hwtmode.data import load_patch_files, combine_patch_data, min_max_scale, storm_max_value, get_meta_scalars,\
+    get_storm_variables
 from hwtmode.models import BaseConvNet, load_conv_net
 from hwtmode.evaluation import classifier_metrics
 from hwtmode.interpretation import score_neurons, plot_neuron_composites, plot_saliency_composites, \
@@ -40,7 +41,9 @@ def main():
     data_input = {}
     output = {}
     out_max = {}
+    storm_out = {}
     labels = {}
+    labels_combined = {}
     meta = {}
     meta_df = {}
     input_combined = {}
@@ -59,7 +62,7 @@ def main():
                                                                       None,
                                                                       config["data_path"],
                                                                       config["input_variables"],
-                                                                      config["output_variables"],
+                                                                      config["patch_output_variables"],
                                                                       config["meta_variables"],
                                                                       config["patch_radius"],
                                                                       mask)
@@ -68,13 +71,23 @@ def main():
             input_scaled[mode], scale_values[mode] = min_max_scale(input_combined[mode])
         else:
             input_scaled[mode], scale_values[mode] = min_max_scale(input_combined[mode], scale_values["train"])
-        out_max[mode] = storm_max_value(output[mode][config["output_variables"][0]], meta[mode]["masks"])
+        out_max[mode] = storm_max_value(output[mode][config["patch_output_variables"][0]], meta[mode]["masks"])
         meta_df[mode] = get_meta_scalars(meta[mode])
-        print(meta_df[mode].columns)
+
+        storm_out[mode] = get_storm_variables(start=config[mode + "_start_date"],
+                                              end=config[mode + "_end_date"],
+                                              data_path=config["data_path"],
+                                              csv_prefix=config["csv_prefix"],
+                                              storm_vars=config["storm_output_variables"])
+
+        labels_combined[mode] = np.concatenate([out_max[mode].reshape(-1, 1), storm_out[mode]], axis=1)
+
         if config["classifier"]:
-            labels[mode] = np.where(out_max[mode] >= config["classifier_threshold"], 1, 0)
+            for i, val in enumerate(config["classifier_thresholds"]):
+                labels_combined[mode][:, i] = np.where(labels_combined[mode][:, i] >
+                                                       config["classifier_thresholds"][i], 1, 0)
         else:
-            labels[mode] = out_max[mode]
+            labels_combined[mode] = labels_combined[mode]
     del data_input, out_max
     for folder in ['models', 'plots', 'data', 'metrics', 'labels']:
         makedirs(join(config["out_path"], folder), exist_ok=True)
@@ -82,8 +95,10 @@ def main():
         yaml.dump(config, config_file)
     if "get_visible_devices" in dir(tf.config.experimental):
         gpus = tf.config.experimental.get_visible_devices("GPU")
+        print("GPUS:", gpus)
     else:
         gpus = tf.config.get_visible_devices("GPU")
+        print("GPUSS:", gpus)
     for device in gpus:
         tf.config.experimental.set_memory_growth(device, True)
     models = {}
@@ -103,19 +118,19 @@ def main():
             scale_values["train"].to_csv(join(model_out_path, "scale_values_" + model_name + ".csv"),
                                          index_label="variable")
             models[model_name] = BaseConvNet(**model_config)
-            models[model_name].fit(input_scaled["train"].values, labels["train"],
-                                   val_x=input_scaled["val"].values, val_y=labels["val"])
+            models[model_name].fit(input_scaled["train"].values, labels_combined["train"],
+                                   val_x=input_scaled["val"].values, val_y=labels_combined["val"])
             models[model_name].save_model(model_out_path, model_name)
             for mode in modes:
-                predictions[mode].loc[:, model_name] = models[model_name].predict(input_scaled[mode].values)
+                predictions[mode].loc[:, model_name] = models[model_name].predict(input_scaled[mode].values)[:, 0]
         for mode in modes:
             predictions[mode].to_csv(
                 join(config["out_path"], "metrics", f"predictions_{mode}.csv"), index_label="index")
 
         print("Calculate metrics")
-        if config["classifier"]:
-            model_scores = classifier_metrics(labels["test"], predictions["test"][list(config["models"].keys())])
-            model_scores.to_csv(join(config["out_path"], "metrics", "model_test_scores.csv"), index_label="model_name")
+        # if config["classifier"]:
+        #     model_scores = classifier_metrics(labels["test"], predictions["test"][list(config["models"].keys())])
+        #     model_scores.to_csv(join(config["out_path"], "metrics", "model_test_scores.csv"), index_label="model_name")
     if args.interp:
         for model_name, model_config in config["models"].items():
             if model_name not in models.keys():
@@ -134,27 +149,27 @@ def main():
                 neuron_activations[model_name][mode].to_csv(join(config["out_path"], "data",
                                                                  f"neuron_activations_{model_name}_{mode}.csv"),
                                                             index_label="index")
-                saliency[model_name][mode] = models[model_name].saliency(input_scaled[mode])
-
-                saliency[model_name][mode].to_netcdf(join(config["out_path"], "data",
-                                                          f"neuron_saliency_{model_name}_{mode}.nc"),
-                                                     encoding={"saliency": {"zlib": True,
-                                                                            "complevel": 4,
-                                                                            "shuffle": True,
-                                                                            "least_significant_digit": 3}})
-                if config["classifier"]:
-                    neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
-                                                                        neuron_activations[model_name][mode][
-                                                                            neuron_columns].values)
-                else:
-                    neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
-                                                                        neuron_activations[model_name][mode][
-                                                                            neuron_columns].values,
-                                                                        metric="r")
-                del saliency[model_name][mode]
-            neuron_scores[model_name].to_csv(join(config["out_path"], "metrics",
-                                                  f"neuron_scores_{model_name}.csv"), index_label="mode")
-            del models[model_name], neuron_activations[model_name]
+            #     saliency[model_name][mode] = models[model_name].saliency(input_scaled[mode])
+            #
+            #     saliency[model_name][mode].to_netcdf(join(config["out_path"], "data",
+            #                                               f"neuron_saliency_{model_name}_{mode}.nc"),
+            #                                          encoding={"saliency": {"zlib": True,
+            #                                                                 "complevel": 4,
+            #                                                                 "shuffle": True,
+            #                                                                 "least_significant_digit": 3}})
+            #     if config["classifier"]:
+            #         neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
+            #                                                             neuron_activations[model_name][mode][
+            #                                                                 neuron_columns].values)
+            #     else:
+            #         neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
+            #                                                             neuron_activations[model_name][mode][
+            #                                                                 neuron_columns].values,
+            #                                                             metric="r")
+            #     del saliency[model_name][mode]
+            # neuron_scores[model_name].to_csv(join(config["out_path"], "metrics",
+            #                                       f"neuron_scores_{model_name}.csv"), index_label="mode")
+            # del models[model_name], neuron_activations[model_name]
 
     if args.train_gmm:
         print('Begin Training Gaussian Mixture Model(s)')
