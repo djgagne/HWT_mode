@@ -577,7 +577,7 @@ def save_gridded_labels(ds, base_path, tabular_format='csv'):
         file_str = join(base_path, run_date, f"label_probabilities_{run_date}_fh_{fh:02d}.nc")
         data.to_netcdf(file_str)
         print("Succesfully wrote:", file_str)
-        data_tabular = data.to_dataframe()
+        data_tabular = data.to_dataframe(dim_order=('time', 'y', 'x'))
         tabular_file_str = join(base_path, run_date, f"label_probabilities_{run_date}_fh_{fh:02d}.{tabular_format}")
         if tabular_format == "csv":
             data_tabular.to_csv(tabular_file_str, index=False)
