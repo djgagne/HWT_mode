@@ -600,3 +600,27 @@ def save_gridded_reports(data, out_path):
         ds = data.isel(Time=valid_i)
         ds.to_netcdf(join(out_path, f'storm_reports_{time}.nc'))
     return
+
+
+def load_probabilities(start, end, eval_path, run_freq, file_format):
+
+    files = []
+    for run_date in pd.date_range(start, end, freq=run_freq[0]).strftime("%Y%m%d%H%M"):
+        file_names = sorted(glob(join(eval_path, run_date, f'label_probabilities_{run_date}*.{file_format}')))
+        for file in file_names:
+            files.append(file)
+
+    if file_format == 'csv':
+
+        file_dfs = [pd.read_csv(f) for f in files]
+
+        return pd.concat(file_dfs)
+
+    elif file_format == 'parquet':
+        file_dfs = [pd.read_parquet(f) for f in files]
+
+        return pd.concat(file_dfs)
+
+    elif file_format == 'nc':
+
+        return xr.open_mfdataset(files, parallel=True, concat_dim='time', combine='nested').load()
