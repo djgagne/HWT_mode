@@ -523,6 +523,18 @@ def load_gridded_data(data_path, physical_model, run_date, forecast_hour, input_
 
 
 def load_labels(start, end, label_path, run_freq, file_format):
+    """
+    Load prediction files
+    Args:
+        start: format "YYYY-MM-DD"
+        end: format "YYY-MM-DD"
+        label_path: path to prediction data
+        run_freq: How often to look for files to load ("daily" or "hourly")
+        file_format: file format to load ("parquet", or "csv")
+
+    Returns:
+        single object with merged dataframes
+    """
 
     labels = []
     for run_date in pd.date_range(start, end, freq=run_freq[0], closed="left"):
@@ -603,7 +615,18 @@ def save_gridded_reports(data, out_path):
 
 
 def load_probabilities(start, end, eval_path, run_freq, file_format):
+    """
+    Load evaluation files
+    Args:
+        start: format "YYYY-MM-DD"
+        end: format "YYY-MM-DD"
+        eval_path: path to evaluation data
+        run_freq: How often to look for files to load ("daily" or "hourly")
+        file_format: file format to load ("nc", "parquet", or "csv")
 
+    Returns:
+        single object with merged dataframes or netCDF files
+    """
     files = []
     for run_date in pd.date_range(start, end, freq=run_freq[0]).strftime("%Y%m%d%H%M"):
         file_names = sorted(glob(join(eval_path, run_date, f'label_probabilities_{run_date}*.{file_format}')))
