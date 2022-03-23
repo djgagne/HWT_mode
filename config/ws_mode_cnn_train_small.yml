@@ -2,7 +2,8 @@ data_path: "testdata/track_data_ncarstorm_3km_REFL_COM_ws_nc_small/"
 patch_radius: 16
 mask: False
 input_variables: ["REFL_1KM_AGL_curr", "U10_curr", "V10_curr"]
-output_variables: ["UP_HELI_MAX_curr"]
+patch_output_variables: ["UP_HELI_MAX_curr"]
+storm_output_variables: ["eccentricity", "major_axis_length"]
 meta_variables: ["masks", "i", "j", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 train_start_date: "2011-04-26"
@@ -13,7 +14,7 @@ test_start_date: "2011-04-28"
 test_end_date: "2011-04-28"
 out_path: "model_cnn_20200416/"
 classifier: 1
-classifier_threshold: 50
+classifier_thresholds: [75, 0.95, 75]
 random_seed: &seed 88
 
 plot_kwargs:
