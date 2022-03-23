@@ -564,16 +564,19 @@ def save_labels(labels, out_path, file_format):
 
 def save_gridded_labels(ds, base_path, tabular_format='csv'):
 
+    print("Writing out probabilities...")
     run_date_str = pd.to_datetime(ds['init_time'].values).strftime('%Y%m%d%H00')
     for run_date in run_date_str:
         makedirs(join(base_path, run_date), exist_ok=True)
 
     for i in range(ds.time.size):
 
-        data = ds.isel(time=i)
-        run_date = pd.to_datetime(data['init_time'].values).strftime('%Y%m%d%H00')
-        fh = data['forecast_hour'].values
-        data.to_netcdf(os.path.join(base_path, run_date, f"label_probabilities_{run_date}_fh_{fh:02d}.nc"))
+        data = ds.isel(time=[i])
+        run_date = pd.to_datetime(data['init_time'].values[0]).strftime('%Y%m%d%H00')
+        fh = data['forecast_hour'].values[0]
+        file_str = join(base_path, run_date, f"label_probabilities_{run_date}_fh_{fh:02d}.nc")
+        data.to_netcdf(file_str)
+        print("Succesfully wrote:", file_str)
         data_tabular = data.to_dataframe()
 
         if tabular_format == "csv":

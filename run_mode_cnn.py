@@ -23,7 +23,7 @@ def main():
     with open(args.config, "r") as config_file:
         config = yaml.load(config_file, Loader=yaml.Loader)
 
-    for dir in ['labels', 'reports', 'evaluation']:
+    for dir in ['labels', 'evaluation']:
         makedirs(join(config["output_path"], dir), exist_ok=True)
     models, gmms, neuron_activations, labels = {}, {}, {}, {}
     if config["run_start_date"] == "today":
@@ -51,9 +51,6 @@ def main():
     for model_type, model_dict in config["models"].items():
         for model_name in model_dict.keys():
             model_path = join(model_dict[model_name]["model_path"], "models", model_name)
-            label_path = join(model_dict[model_name]["model_path"], 'labels')
-            if not exists(label_path):
-                makedirs(label_path)
 
             if model_type != 'supervised_DNN':
                 scale_values = pd.read_csv(join(model_path, f"scale_values_{model_name}.csv"))

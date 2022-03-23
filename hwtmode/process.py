@@ -152,7 +152,7 @@ def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_st
         for forecast_hour in run_labels['Forecast_Hour'].unique():
 
             fh_labels = run_labels[run_labels["Forecast_Hour"] == forecast_hour]
-            valid_time = pd.to_datetime(fh_labels['Forecast_Hour'].unique()[0])
+            valid_time = pd.to_datetime(fh_labels['Valid_Date'].unique()[0])
             ds = storm_grid.expand_dims('time').assign_coords(init_time=('time', [pd.to_datetime(run_date)]),
                                                               valid_time=('time', [valid_time]),
                                                               forecast_hour=('time', [forecast_hour]))
