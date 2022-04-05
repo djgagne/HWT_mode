@@ -115,8 +115,8 @@ def main():
             for model in model_class.keys():
                 model_names.append(model)
 
-        labels = load_labels(start=config["run_start_date"],
-                             end=config["run_end_date"],
+        labels = load_labels(start=start_str,
+                             end=end_str,
                              label_path=join(config["output_path"], "labels"),
                              run_freq=config["run_freq"],
                              file_format=config["output_format"])
