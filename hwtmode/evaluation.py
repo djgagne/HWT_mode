@@ -294,7 +294,8 @@ def image_viewer(base_path, CNN_name, GMM_name, evaluator):
     def write_file(button):
 
         time = datetime.now().strftime("%Y-%m-%d_%H%M")
-        label_out_path = join(base_path, "models", CNN_name, f"{CNN_name}_{GMM_name}_labels_{evaluator}_{time}.dict")
+        label_out_path = join(base_path, "models", CNN_name,
+                              f"{CNN_name}_{GMM_name}_labels_{evaluator}_{time}_dict.pkl")
         joblib.dump(cluster_dict, label_out_path)
         with out:
             out.clear_output()
