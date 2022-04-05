@@ -537,7 +537,7 @@ def load_labels(start, end, label_path, run_freq, file_format):
     """
 
     labels = []
-    for run_date in pd.date_range(start, end, freq=run_freq[0], closed="left"):
+    for run_date in pd.date_range(start, end, freq=run_freq[0]):
         file_name = join(label_path, f'model_labels_{run_date.strftime("%Y-%m-%d_%H%M")}.{file_format}')
         if isfile(file_name):
             if file_format == 'parquet':
