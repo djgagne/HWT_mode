@@ -1,18 +1,21 @@
-data_path: "/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_COM_hyst_nc/"
+data_path: "/glade/work/cbecker/WRF_all/track_data_hrrr_3km_nc_refl/"
+csv_data_path: "/glade/work/cbecker/WRF_all/track_data_hrrr_3km_csv_refl/"
+csv_prefix: "track_step_NCARSTORM_d01_"
 patch_radius: 32
-input_variables: ["REFL_COM_curr"]
-output_variables: ["UP_HELI_MAX_curr"]
+input_variables: ["REFL_COM_curr", "UP_HELI_MAX_curr"]
+patch_output_variables: ["UP_HELI_MAX_curr"]
+storm_output_variables: ["eccentricity", "major_axis_length"]
 meta_variables: ["masks", "i", "j", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
-train_start_date: "2010-10-25"
+train_start_date: "2010-10-24"
 train_end_date: "2015-12-31"
 val_start_date: "2016-01-01"
 val_end_date: "2016-12-31"
 test_start_date: "2017-01-01"
-test_end_date: "2017-06-30"
-out_path: "/glade/scratch/cbecker/HWT_20211109/"
+test_end_date: "2019-12-31"
+out_path: "/glade/work/cbecker/HWT_20220318/"
 classifier: 1
-classifier_threshold: 75
+classifier_thresholds: [75, 0.95, 75]
 random_seed: &seed 88
 
 plot_kwargs:
@@ -30,29 +33,29 @@ plot_kwargs:
     cmap: "viridis"
 
 models:
-  CNN_1:
+  SS:
     min_filters: 16
     filter_width: 5
     filter_growth_rate: 1.5
     pooling_width: 2
     min_data_width: 4
     output_type: "sigmoid"
-    pooling: "mean"
+    pooling: "max"
     loss: "binary_crossentropy"
     hidden_activation: "leaky"
     learning_rate: 0.001
     batch_size: 256
     use_dropout: 0
     dropout_alpha: 0.2
-    epochs: 50
-    dense_neurons: 72
-    covariance_scale: 1000
-    l2_alpha: 0.001
+    epochs: 30
+    dense_neurons: 128
+    covariance_scale: 5000
+    l2_alpha: 0.0001
     early_stopping: 0
     verbose: 1
 
 GMM_models:
-  GMM_1:
+  GMM:
     n_components: 25
     covariance_type: 'full'
     max_iter: 1000

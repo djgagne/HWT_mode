@@ -137,7 +137,7 @@ def get_storm_variables(start, end, data_path, csv_prefix, storm_vars):
     end_str = (pd.Timestamp(end, tz="UTC")).strftime("%Y%m%d-%H00")
     l = []
     for d in pd.date_range(start_str.replace('-', ''), end_str.replace('-', ''), freq='d'):
-        file_path = join(data_path.replace('_nc', '_csv'), f'{csv_prefix}{d.strftime("%Y%m%d-%H00")}.csv')
+        file_path = join(data_path, f'{csv_prefix}{d.strftime("%Y%m%d-%H00")}.csv')
         if exists(file_path):
             df = pd.read_csv(file_path)
             l.append(df)

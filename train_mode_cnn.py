@@ -42,7 +42,6 @@ def main():
     output = {}
     out_max = {}
     storm_out = {}
-    labels = {}
     labels_combined = {}
     meta = {}
     meta_df = {}
@@ -76,7 +75,7 @@ def main():
 
         storm_out[mode] = get_storm_variables(start=config[mode + "_start_date"],
                                               end=config[mode + "_end_date"],
-                                              data_path=config["data_path"],
+                                              data_path=config["csv_data_path"],
                                               csv_prefix=config["csv_prefix"],
                                               storm_vars=config["storm_output_variables"])
 

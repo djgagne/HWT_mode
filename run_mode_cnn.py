@@ -39,7 +39,7 @@ def main():
 
     l = []
     for d in pd.date_range(start_str.replace('-', ''), end_str.replace('-', ''), freq=config['run_freq'][0]):
-        file_path = join(config["data_path"].replace('_nc', '_csv'),
+        file_path = join(config["csv_data_path"],
                          f'{config["csv_model_prefix"]}{d.strftime("%Y%m%d-%H00")}.csv')
         print(file_path)
         if exists(file_path):
