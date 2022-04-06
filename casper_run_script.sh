@@ -1,17 +1,12 @@
 #!/bin/bash -l
-#SBATCH --job-name=run_m_cnn
-#SBATCH --account=NAML0001
-#SBATCH --ntasks=4
-#SBATCH --cpus-per-task=1
-#SBATCH --time=00:30:00
-#SBATCH --partition=dav
-#SBATCH --mem=64G
-#SBATCH --output=run_mode_cnn.out
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=cbecker@ucar.edu
-#SBATCH --gres=gpu:v100:1
-module load cuda/10.1
+#PBS -N mode_cnn
+#PBS -A NAML0001
+#PBS -l walltime=01:00:00
+#PBS -j oe
+#PBS -o run_mode.out
+#PBS -q casper
+#PBS -l select=1:ncpus=8:mem=64GB
+
+module load cuda/11 cudnn
 conda activate hwt
-#export PATH="/glade/u/home/dgagne/miniconda3/envs/goes/bin:$PATH"
-#export PROJ_LIB="/glade/u/home/dgagne/miniconda3/envs/goes/share/proj"
-python -u run_mode_cnn.py config/charlie_run.yml
+python -u run_mode_cnn.py config/WRF_run_cnn_gmm.yml

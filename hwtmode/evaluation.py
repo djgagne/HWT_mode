@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 from sklearn.metrics import roc_auc_score, brier_score_loss
 from os.path import join
 import joblib
@@ -11,6 +12,7 @@ import os
 import re
 from datetime import datetime
 from tensorflow.keras import backend as K
+from shapely.geometry import Polygon
 
 def brier_skill_score(y_true, y_pred):
     bs_climo = np.mean((y_true.mean() - y_true) ** 2)
@@ -292,7 +294,8 @@ def image_viewer(base_path, CNN_name, GMM_name, evaluator):
     def write_file(button):
 
         time = datetime.now().strftime("%Y-%m-%d_%H%M")
-        label_out_path = join(base_path, "models", CNN_name, f"{CNN_name}_{GMM_name}_labels_{evaluator}_{time}.dict")
+        label_out_path = join(base_path, "models", CNN_name,
+                              f"{CNN_name}_{GMM_name}_labels_{evaluator}_{time}_dict.pkl")
         joblib.dump(cluster_dict, label_out_path)
         with out:
             out.clear_output()

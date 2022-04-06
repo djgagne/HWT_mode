@@ -1,7 +1,8 @@
 import xarray as xr
 import numpy as np
+import os
 from os import makedirs
-from os.path import exists, join
+from os.path import exists, join, isfile
 from glob import glob
 from tqdm import tqdm
 import pandas as pd
@@ -118,6 +119,32 @@ def combine_patch_data(patch_data, variables):
     combined = xr.concat([patch_data[variable] for variable in variables],
                          pd.Index(variables, name="var_name"))
     return combined.transpose("p", "row", "col", "var_name")
+
+
+def get_storm_variables(start, end, data_path, csv_prefix, storm_vars):
+    """
+    Args:
+        start: Start date (format: YYYY-MM-DD)
+        end: End Date (format YYYY-MM-DD)
+        data_path: Base path to data
+        csv_prefix: Prefix of CSV files
+        storm_vars: Variables to pull
+
+    Returns: Numpy array (samples, variables)
+
+    """
+    start_str = (pd.Timestamp(start, tz="UTC")).strftime("%Y%m%d-%H00")
+    end_str = (pd.Timestamp(end, tz="UTC")).strftime("%Y%m%d-%H00")
+    l = []
+    for d in pd.date_range(start_str.replace('-', ''), end_str.replace('-', ''), freq='d'):
+        file_path = join(data_path.replace('_nc', '_csv'), f'{csv_prefix}{d.strftime("%Y%m%d-%H00")}.csv')
+        if exists(file_path):
+            df = pd.read_csv(file_path)
+            l.append(df)
+    storm_data = pd.concat(l).reset_index(drop=True)
+    storm_vals = storm_data[storm_vars].values
+
+    return storm_vals
 
 
 def min_max_scale(patch_data, scale_values=None):
@@ -495,18 +522,44 @@ def load_gridded_data(data_path, physical_model, run_date, forecast_hour, input_
         return all_ds.load()
 
 
-def save_labels(labels, freq, out_path, file_format):
+def load_labels(start, end, label_path, run_freq, file_format):
+    """
+    Load prediction files
+    Args:
+        start: format "YYYY-MM-DD"
+        end: format "YYY-MM-DD"
+        label_path: path to prediction data
+        run_freq: How often to look for files to load ("daily" or "hourly")
+        file_format: file format to load ("parquet", or "csv")
+
+    Returns:
+        single object with merged dataframes
+    """
+
+    labels = []
+    for run_date in pd.date_range(start, end, freq=run_freq[0]):
+        file_name = join(label_path, f'model_labels_{run_date.strftime("%Y-%m-%d_%H%M")}.{file_format}')
+        if isfile(file_name):
+            if file_format == 'parquet':
+                labels.append(pd.read_parquet(file_name))
+            elif file_format == 'csv':
+                labels.append(pd.read_csv(file_name))
+        else:
+            continue
+
+    return pd.concat(labels)
+
+
+def save_labels(labels, out_path, file_format):
     """
     Save storm mode labels to parquet or csv file.
     Args:
         labels: Pandas dataframe of storm mode labels
-        freq: 'Run_date' frequency at which to chunk and save data out
         out_path: Path to save labels to
         file_format: File format (accepts 'csv' or 'parquet')
     Returns:
     """
-
-    for date in pd.date_range(labels['Run_Date'].min(), labels['Run_Date'].max(), freq=freq[0]):
+    for date in pd.date_range(labels["Run_Date"].min(), labels["Run_Date"].max(), freq='h'):
         df_sub = labels.loc[labels['Run_Date'] == date]
         if len(df_sub) == 0:
             continue
@@ -521,32 +574,30 @@ def save_labels(labels, freq, out_path, file_format):
         print(f'Wrote {file_name}.')
 
 
-def save_neighborhood_probs(data, out_path, file_format='parquet'):
-    """
-    Args:
-        data: Aggregated netCDF file with neighborhood probability values
-        out_path: Base path to save
-        file_format: File format to save tabular results
+def save_gridded_labels(ds, base_path, tabular_format='csv'):
 
-    Returns:
-    """
+    print("Writing out probabilities...")
+    run_date_str = pd.to_datetime(ds['init_time'].values).strftime('%Y%m%d%H00')
+    for run_date in run_date_str:
+        makedirs(join(base_path, run_date), exist_ok=True)
 
-    prob_vars = ['valid_time', 'lon', 'lat'] + [x for x in data.data_vars if 'nprob' in x]
+    for i in range(ds.time.size):
 
-    for valid_i, valid_time in enumerate(sorted(np.unique(data['valid_time'].values))):
-
-        time = pd.Timestamp(valid_time).strftime("%Y-%m-%d_%H%M")
-        ds = data[prob_vars].isel(time=valid_i)
-        df = ds.to_dataframe(dim_order=('y', 'x')).reset_index()
-        ds.to_netcdf(join(out_path, f'neighborhood_probabilities_{time}.nc'))
-        tabular_file_name = join(out_path, f'neighborhood_probabilities_{time}.{file_format}')
-        if file_format == 'csv':
-            df.to_csv(join(out_path, tabular_file_name, index_label=False))
-        elif file_format == 'parquet':
-            df.to_parquet(join(out_path, tabular_file_name))
-        else:
-            raise ValueError(f'File format {file_format} not found. Please use "parquet" or "csv"')
+        data = ds.isel(time=[i])
+        run_date = pd.to_datetime(data['init_time'].values[0]).strftime('%Y%m%d%H00')
+        fh = data['forecast_hour'].values[0]
+        file_str = join(base_path, run_date, f"label_probabilities_{run_date}_fh_{fh:02d}.nc")
+        data.to_netcdf(file_str)
+        print("Succesfully wrote:", file_str)
+        data_tabular = data.to_dataframe(dim_order=('time', 'y', 'x'))
+        tabular_file_str = join(base_path, run_date, f"label_probabilities_{run_date}_fh_{fh:02d}.{tabular_format}")
+        if tabular_format == "csv":
+            data_tabular.to_csv(tabular_file_str, index=False)
+        elif tabular_format == "parquet":
+            data_tabular.to_parquet(tabular_file_str)
+        print("Succesfully wrote:", tabular_file_str)
     return
+
 
 def save_gridded_reports(data, out_path):
     """
@@ -555,8 +606,44 @@ def save_gridded_reports(data, out_path):
         out_path: Base path to save
     Returns:
     """
+    data.to_netcdf('combined_storm_reports.nc')
     for valid_i, valid_time in enumerate(sorted(np.unique(data['valid_time'].values))):
         time = pd.Timestamp(valid_time).strftime("%Y-%m-%d_%H%M")
         ds = data.isel(Time=valid_i)
         ds.to_netcdf(join(out_path, f'storm_reports_{time}.nc'))
     return
+
+
+def load_probabilities(start, end, eval_path, run_freq, file_format):
+    """
+    Load evaluation files
+    Args:
+        start: format "YYYY-MM-DD"
+        end: format "YYY-MM-DD"
+        eval_path: path to evaluation data
+        run_freq: How often to look for files to load ("daily" or "hourly")
+        file_format: file format to load ("nc", "parquet", or "csv")
+
+    Returns:
+        single object with merged dataframes or netCDF files
+    """
+    files = []
+    for run_date in pd.date_range(start, end, freq=run_freq[0]).strftime("%Y%m%d%H%M"):
+        file_names = sorted(glob(join(eval_path, run_date, f'label_probabilities_{run_date}*.{file_format}')))
+        for file in file_names:
+            files.append(file)
+
+    if file_format == 'csv':
+
+        file_dfs = [pd.read_csv(f) for f in files]
+
+        return pd.concat(file_dfs)
+
+    elif file_format == 'parquet':
+        file_dfs = [pd.read_parquet(f) for f in files]
+
+        return pd.concat(file_dfs)
+
+    elif file_format == 'nc':
+
+        return xr.open_mfdataset(files, parallel=True, concat_dim='time', combine='nested').load()

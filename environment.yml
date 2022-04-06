@@ -24,6 +24,7 @@ dependencies:
   - flake8
   - jupyterlab
   - ipywidgets
+  - geopandas
   - pip:
     - tensorflow==2.4.0
     - tensorflow-probability==0.12.2

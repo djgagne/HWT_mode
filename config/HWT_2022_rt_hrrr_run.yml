@@ -1,51 +1,39 @@
-data_path: "/glade/scratch/cbecker/HRRR_objects/20220309/201905_201906_hourly/track_data_hrrr_3km_nc/"
+data_path: "/glade/scratch/cbecker/HWT_2022_rt_test/track_data_hrrr_3km_nc/"
 csv_model_prefix: "track_step_HRRR-ZARR_oper_"
 patch_meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
                  "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
 csv_meta_variables: ['Valid_Date', 'Run_Date', 'Forecast_Hour', 'Step_ID', 'Track_ID',
                       'Duration', 'Centroid_Lon', 'Centroid_Lat']
 storm_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max",
-                "VUCSH-0_6000m_above_ground-potential_mean",
-                "VVCSH-0_6000m_above_ground-potential_mean"]
-#                "CAPE-0_3000m_above_ground_potential_max", # only in v4
-#                "CAPE-0_3000m_above_ground_potential_mean"]
+                  "VUCSH-0_6000m_above_ground-potential_mean",
+                  "VVCSH-0_6000m_above_ground-potential_mean",
+                  "CAPE-0_3000m_above_ground-potential_max",
+                  "CAPE-0_3000m_above_ground-potential_mean"]
 model_grid_path: '/glade/work/cbecker/HWT_mode/model_grids/NCEP_211_grid.nc'
-run_start_date: "2019-05-03"
-run_end_date: "2019-05-05"
+run_start_date: "today"
+run_end_date: "today"
 run_freq: "hourly"
 output_format: "csv"
-output_path: "/glade/scratch/cbecker/HWT_2022_HRRR_labels_201905_hourly_0321/"
+output_path: "/glade/scratch/cbecker/HWT_2022_rt/output/"
 proj_str: "+proj=lcc +lat_0=38.5 +lon_0=-97.5 +lat_1=38.5 +lat_2=38.5 +a=6371229 +b=6371229"
 models:
   semi_supervised:
     SS:
-      model_path: "/glade/work/cbecker/HWT_20220318/"
+      model_path: "/glade/work/cbecker/HWT/HWT_models/HWT_20220318_SS/"
       gmm_name: 'GMM'
-      label_dict: 'SS_GMM_labels_charlie_2022-03-21_1534.dict'
+      label_dict: 'SS_GMM_labels_charlie_2022-03-22_1636.dict'
       patch_radius: 32
       input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
       output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
-#    SS1:
-#      model_path: "/glade/scratch/cbecker/HWT_multi_output/"
-#      label_dict: 'GMM_1_gmm_labels.dict'
-#      patch_radius: 32
-#      input_variables: [ "REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
-#      output_variables: [ "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
-#    SS2:
-#      model_path: "/glade/scratch/cbecker/HWT_multi_output/"
-#      label_dict: 'GMM_1_gmm_labels.dict'
-#      patch_radius: 32
-#      input_variables: [ "REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
-#      output_variables: [ "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr" ]
   supervised:
     CNN_1:
-      model_path: "/glade/scratch/cbecker/HWT_supervised_copy/"
+      model_path: "/glade/work/cbecker/HWT/HWT_models/HWT_CNN/"
       patch_radius: 32
       input_variables: ["REFC-entire_atmosphere_curr", "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
       output_variables: ["MXUPHL_1hr_max_fcst-5000_2000m_above_ground_curr"]
   supervised_DNN:
     DNN_1:
-      model_path: "/glade/scratch/cbecker/HWT_DNN"
+      model_path: "/glade/work/cbecker/HWT/HWT_models/HWT_DNN/"
       input_variables: [ "Centroid_Lat",
                          "MXUPHL_1hr_max_fcst-5000_2000m_above_ground_max",
                          "Forecast_Hour",
