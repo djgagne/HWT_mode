@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #PBS -N mode_cnn
 #PBS -A NAML0001
-#PBS -l walltime=02:00:00
+#PBS -l walltime=01:00:00
 #PBS -o hwt_hrrr.out
 #PBS -e hwt_hrrr.out
 #PBS -q casper
