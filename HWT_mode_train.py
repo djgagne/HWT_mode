@@ -28,9 +28,9 @@ def get_other_validation_data(debug=False):
     searchpath = "/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_COM_hyst_csv/track_step*_d01_20*.csv"
     df = pd.concat([pd.read_csv(f, header=0, index_col="Step_ID", parse_dates=["Run_Date","Valid_Date"]) for f in glob.glob(searchpath)])
     df = df.sort_values(["Run_Date", "Forecast_Hour"])
-    df = scalar2vector.decompose_circ_feature(df, "orientation", scale2rad=2., debug=debug)
+    df = decompose_circular_feature(df, "orientation", period=np.pi) # orientation cycles at pi, not 2*pi
     df.loc[:,"Local_Solar_Hour"] = df["Valid_Hour_UTC"] + df["Centroid_Lon"]/15.
-    df = scalar2vector.decompose_circ_feature(df, "Local_Solar_Hour", scale2rad=2.*np.pi/24., debug=debug) # orientation cycles at pi, not 2*pi
+    df = decompose_circular_feature(df, "Local_Solar_Hour", period=24)
     df = scalar2vector.uvmagnitude(df, drop=False)
     return df
 
@@ -124,7 +124,7 @@ import os
 import pandas as pd
 import pdb
 import pickle
-import scalar2vector
+from hwtmode.data import decompose_circular_feature
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import cross_val_score, GridSearchCV, KFold 
@@ -267,9 +267,9 @@ def main():
     onehotlabels = label_binarize(labels, classes=labels.cat.categories) # label_binarize over LabelEncoder/LabelBinarizer because it allows you to specify order of classes.
 
     # Circular features
-    df = scalar2vector.decompose_circ_feature(df, "orientation", scale2rad=2., debug=debug) # orientation cycles at pi, not 2*pi
+    df = decompose_circular_feature(df, "orientation", period=np.pi) # orientation repeats every pi, not 2*pi
     df.loc[:,"Local_Solar_Hour"] = df["Valid_Hour_UTC"] + df["Centroid_Lon"]/15.
-    df = scalar2vector.decompose_circ_feature(df, "Local_Solar_Hour", scale2rad=2.*np.pi/24., debug=debug) # orientation cycles at pi, not 2*pi
+    df = decompose_circular_feature(df, "Local_Solar_Hour", period=24) 
     for f in ["orientation", "Local_Solar_Hour"]:
         if f in features:
             features += [f+"_sin", f+"_cos"]
