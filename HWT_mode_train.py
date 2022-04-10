@@ -118,7 +118,7 @@ import argparse
 import glob
 import joblib
 import matplotlib.pyplot as plt
-from ml_functions import brier_skill_score
+from hwtmode.evaluation import brier_skill_score
 import numpy as np
 import os
 import pandas as pd
