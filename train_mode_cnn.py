@@ -157,11 +157,11 @@ def main():
                                                                             "shuffle": True,
                                                                             "least_significant_digit": 3}})
                 if config["classifier"]:
-                    neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
+                    neuron_scores[model_name].loc[mode] = score_neurons(labels_combined[mode],
                                                                         neuron_activations[model_name][mode][
                                                                             neuron_columns].values)
                 else:
-                    neuron_scores[model_name].loc[mode] = score_neurons(labels[mode],
+                    neuron_scores[model_name].loc[mode] = score_neurons(labels_combined[mode],
                                                                         neuron_activations[model_name][mode][
                                                                             neuron_columns].values,
                                                                         metric="r")
