@@ -260,7 +260,7 @@ def main():
                     plot_prob_dist(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
                     plot_prob_cdf(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
                     cape_shear_modes(cluster_df, plot_out_path, config["csv_data_path"], mode, model_name,
-                                     gmm_name=GMM_mod_name, cluster=True, num_storms=500)
+                                     gmm_name=GMM_mod_name, cluster=True, num_storms=250)
                     spatial_neuron_activations(cluster_df, plot_out_path, mode, model_name,
                                                gmm_name=GMM_mod_name, cluster=True)
                     diurnal_neuron_activations(cluster_df, plot_out_path, mode, model_name,
