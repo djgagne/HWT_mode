@@ -33,6 +33,8 @@ def main():
         raise FileNotFoundError(args.config + " not found.")
     with open(args.config, "r") as config_file:
         config = yaml.load(config_file, Loader=yaml.Loader)
+    os.environ['TF_DETERMINISTIC_OPS'] = '1'
+    os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
     np.random.seed(config["random_seed"])
     random.seed(config["random_seed"])
     tf.random.set_seed(config["random_seed"])
