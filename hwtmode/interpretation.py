@@ -163,10 +163,9 @@ def cape_shear_modes(neuron_activations, output_path, data_path, mode, model_nam
         file_name = f'CAPE_Shear_{model_name}_{mode}.png'
     df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Value', col_type.capitalize()])
     cols = list(neuron_activations.columns[neuron_activations.columns.str.contains(col_type)])
-    csv_path = data_path.replace('nc', 'csv')
     
     dates = sorted(set(neuron_activations['run_date'].astype('datetime64[ns]')))
-    file_strings = [join(csv_path, f'track_step_NCARSTORM_d01_{x.strftime("%Y%m%d")}-0000.csv') for x in dates]
+    file_strings = [join(data_path, f'track_step_NCARSTORM_d01_{x.strftime("%Y%m%d")}-0000.csv') for x in dates]
     ddf = dd.read_csv(file_strings).compute()
     
     for col in cols:
@@ -367,7 +366,8 @@ def plot_storm_clusters(patch_data_path, output_path, cluster_data, n_storms=25,
 
         storm_idxs = sub.index.values
         patch_center = int(ds.row.size / 2)
-        x = ds[['REFL_COM_curr', 'U10_curr', 'V10_curr', 'masks']].isel(p=storm_idxs, row=slice(patch_center - patch_radius, patch_center + patch_radius),
+        refl_var = [v for v in ds.data_vars if "REFL" in v][0]
+        x = ds[[refl_var, 'U10_curr', 'V10_curr', 'masks']].isel(p=storm_idxs, row=slice(patch_center - patch_radius, patch_center + patch_radius),
                                                                col=slice(patch_center - patch_radius, patch_center + patch_radius)).load()
         wind_step = int(np.ceil(np.sqrt(x.row.size)))
         wind_slice = (slice(wind_step, None, wind_step), slice(wind_step, None, wind_step))

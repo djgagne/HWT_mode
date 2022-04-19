@@ -127,9 +127,10 @@ def main():
                 join(config["out_path"], "metrics", f"predictions_{mode}.csv"), index_label="index")
 
         print("Calculate metrics")
-        # if config["classifier"]:
-        #     model_scores = classifier_metrics(labels["test"], predictions["test"][list(config["models"].keys())])
-        #     model_scores.to_csv(join(config["out_path"], "metrics", "model_test_scores.csv"), index_label="model_name")
+        if config["classifier"]:
+            model_scores = classifier_metrics(labels_combined["test"][:, 0],
+                                              predictions["test"][list(config["models"].keys())])
+            model_scores.to_csv(join(config["out_path"], "metrics", "model_test_scores.csv"), index_label="model_name")
     if args.interp:
         for model_name, model_config in config["models"].items():
             if model_name not in models.keys():
@@ -156,6 +157,7 @@ def main():
                                                                             "complevel": 4,
                                                                             "shuffle": True,
                                                                             "least_significant_digit": 3}})
+
                 if config["classifier"]:
                     neuron_scores[model_name].loc[mode] = score_neurons(labels_combined[mode][:, 0],
                                                                         neuron_activations[model_name][mode][
@@ -255,7 +257,7 @@ def main():
                         config["out_path"], "data", f"{model_name}_{GMM_mod_name}_{mode}_clusters.csv"))
                     plot_prob_dist(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
                     plot_prob_cdf(cluster_df, plot_out_path, GMM_mod_name, GMM_config["n_components"])
-                    cape_shear_modes(cluster_df, plot_out_path, config["data_path"], mode, model_name,
+                    cape_shear_modes(cluster_df, plot_out_path, config["csv_data_path"], mode, model_name,
                                      gmm_name=GMM_mod_name, cluster=True, num_storms=1000)
                     spatial_neuron_activations(cluster_df, plot_out_path, mode, model_name,
                                                gmm_name=GMM_mod_name, cluster=True)
