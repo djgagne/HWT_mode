@@ -19,12 +19,12 @@ jobs:
           auto-activate-base: false
           activate-environment: hwtmode
           environment-file: environment.yml
-#       - name: Lint with flake8
-#         run: |
-#           # stop the build if there are Python syntax errors or undefined names
-#           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-#           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-#           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - name: Lint with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Run pytest
         run: |
           conda activate hwtmode
@@ -32,5 +32,5 @@ jobs:
       - name: Run the HWT training script
         run: |
           conda activate hwtmode
-          python -u train_mode_cnn.py config/ws_mode_cnn_train_small.yml -t -i -u -p
+          python -u train_mode_cnn.py config/ws_mode_cnn_train_small.yml -t -i -u -p -p2
           

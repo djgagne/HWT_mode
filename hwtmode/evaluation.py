@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+import xarray as xr
+import geopandas as gpd
+from pyproj import Proj, CRS, Transformer
 from sklearn.metrics import roc_auc_score, brier_score_loss
 from os.path import join
 import joblib
@@ -10,12 +13,23 @@ from ipywidgets import GridspecLayout, Layout
 import os
 import re
 from datetime import datetime
+from tensorflow.keras import backend as K
+from shapely.geometry import Polygon
 
 def brier_skill_score(y_true, y_pred):
     bs_climo = np.mean((y_true.mean() - y_true) ** 2)
     bs = brier_score_loss(y_true, y_pred)
     return 1 - bs / bs_climo
 
+def brier_score(obs, preds):
+    return K.mean((preds - obs) ** 2)
+
+def bss(obs, preds):
+    bs = brier_score(obs, preds)
+    obs_climo = K.mean(obs, axis=0)
+    bs_climo = K.mean((obs - obs_climo) ** 2)
+    bss = 1.0 - bs/(bs_climo+K.epsilon())
+    return bss
 
 def classifier_metrics(y_true, model_predictions):
     """
@@ -282,7 +296,8 @@ def image_viewer(base_path, CNN_name, GMM_name, evaluator):
     def write_file(button):
 
         time = datetime.now().strftime("%Y-%m-%d_%H%M")
-        label_out_path = join(base_path, "models", CNN_name, f"{CNN_name}_{GMM_name}_labels_{evaluator}_{time}.dict")
+        label_out_path = join(base_path, "models", CNN_name,
+                              f"{CNN_name}_{GMM_name}_labels_{evaluator}_{time}_dict.pkl")
         joblib.dump(cluster_dict, label_out_path)
         with out:
             out.clear_output()
@@ -308,3 +323,80 @@ def image_viewer(base_path, CNN_name, GMM_name, evaluator):
     app[-1, :] = out
 
     return app
+
+
+class StaggeredGridder(object):
+
+    def __init__(self, base_grid_path, longitude_name, latitude_name, latlonCRS, proj_str):
+
+        self.base_grid_path = base_grid_path
+        self.longitude_name = longitude_name
+        self.latitude_name = latitude_name
+        self.proj_str = proj_str
+        self.lcc = CRS(proj_str)
+        self.latlon = CRS(latlonCRS)
+        self.transformer = Transformer.from_crs(self.latlon, self.lcc)
+        self.inv_transformer = Transformer.from_crs(self.lcc, self.latlon)
+
+    def load_base_grid(self):
+
+        grid = xr.open_dataset(self.base_grid_path)
+        lat, lon = grid[self.latitude_name].values, grid[self.longitude_name].values
+
+        return lat, lon
+
+    def transform_points(self, lats, lons):
+
+        return self.transformer.transform(lats, lons)
+
+    def inv_transform_points(self, lons_m, lats_m):
+
+        return self.inv_transformer.transform(lats_m, lons_m)
+
+    def make_staggered_point_grid(self):
+
+        lats, lons = self.load_base_grid()
+        latlon_m = self.transform_points(lats, lons)
+        grid_x, grid_y = latlon_m[0], latlon_m[1]
+        x_dim, y_dim = lats.shape[1], lats.shape[0]
+
+        x_offset = np.abs((latlon_m[0][:, :-1] - latlon_m[0][:, 1:]).mean() / 2)
+        y_offset = np.abs((latlon_m[1][:-1, :] - latlon_m[1][1:, :]).mean() / 2)
+
+        grid_offset_x = grid_x - x_offset
+        grid_offset_y = grid_y - y_offset
+        expanded_x, expanded_y = np.zeros((y_dim + 1, x_dim + 1)), np.zeros((y_dim + 1, x_dim + 1))
+        expanded_x[:-1, :-1], expanded_y[:-1, :-1] = grid_offset_x, grid_offset_y
+
+        expanded_x[-1, :-1] = expanded_x[-2, :-1]
+        expanded_x[:, -1] = expanded_x[:, -2] + (x_offset * 2)
+
+        expanded_y[-1, :-1] = expanded_y[-2, :-1] + (y_offset * 2)
+        expanded_y[:, -1] = expanded_y[:, -2]
+
+        latlon = self.inv_transform_points(expanded_y, expanded_x)
+
+        return latlon[0], latlon[1]
+
+    def create_geo_df(self):
+
+        lats, lons = self.make_staggered_point_grid()
+
+        x_dim, y_dim = lats.shape[1], lats.shape[0]
+        polygons = []
+
+        for yi in range(y_dim - 1):
+            for xi in range(x_dim - 1):
+                polygon = []
+                polygon.append((lons[yi, xi], lats[yi, xi]))
+                polygon.append((lons[yi, xi + 1], lats[yi, xi + 1]))
+                polygon.append((lons[yi + 1, xi + 1], lats[yi + 1, xi + 1]))
+                polygon.append((lons[yi + 1, xi], lats[yi + 1, xi]))
+                polygon.append((lons[yi, xi], lats[yi, xi]))
+                polygons.append(Polygon(polygon))
+
+        return gpd.GeoDataFrame(geometry=polygons)
+
+    def save_geoJSON(self, gdf, path):
+
+        gdf.to_file(path, driver="GeoJSON")

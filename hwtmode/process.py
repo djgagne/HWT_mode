@@ -9,7 +9,7 @@ import joblib
 from pyproj import Proj
 from scipy.spatial.distance import cdist
 
-def find_coord_indices(lon_array, lat_array, lon_points, lat_points, dist_proj='lcc'):
+def find_coord_indices(lon_array, lat_array, lon_points, lat_points, proj_str):
     """
     Find indices of nearest lon/lat pair on a grid. Supports rectilinear and curilinear grids.
     lon_points / lat_points must be received as a list.
@@ -18,14 +18,12 @@ def find_coord_indices(lon_array, lat_array, lon_points, lat_points, dist_proj='
         lat_array (np.array): Latitude values of coarse grid you are matching against
         lon_points (list): List of Longitude points from orginal grid/object
         lat_points (list): List of Latitude points from original grid/object
-        dist_proj (str): Name of projection for pyproj to calculate distances
+        proj_str (str): Projection string
     Returns (list):
         List of i, j (Lon/Lat) indices for coarse grid.
-
     """
-    if dist_proj == 'lcc':
-        proj = Proj(proj='lcc', R=6371229, lat_0=38.336433, lon_0=-97.53348, lat_1=32, lat_2=46)  ## from WRF HWT data
 
+    proj = Proj(proj_str)
     proj_lon, proj_lat = np.array(proj(lon_array, lat_array))  # transform to distances using specified projection
     lonlat = np.column_stack(
         (proj_lon.ravel(), proj_lat.ravel()))  # Stack all coarse x, y distances for array shape (n, 2)
@@ -45,7 +43,7 @@ def fetch_storm_reports(start_date, end_date, out_dir, report_type):
         report_type (str): SPC extention for specific report type (Ex. 'filtered_torn', 'hail', filtered_wind')
     """
 
-    dates = pd.date_range(start_date, end_date).strftime('%y%m%d')
+    dates = pd.date_range(start_date, end_date)#.strftime('%y%m%d')
     for date in dates:
         if isfile(join(out_dir, f'{date}_{report_type}.csv')):
             continue
@@ -84,35 +82,40 @@ def combine_storm_reports(start_date, end_date, out_dir, report_type):
     return df
 
 
-def generate_obs_grid(beg, end, storm_report_path, model_grid_path):
+def generate_obs_grid(start_date, end_date, storm_report_path, model_grid_path, proj_str):
     """
     Generate Xarray dataset (Time, x, y) of observed storm reports. Each hazard is stored as a seperate variable. Valid time is separted by hour. Minimum and maximum
     lead times are used for ensembled HRRR runs.
     Args:
-        beg (str): Beginning of date range (format: YYMMDDhhmm)
-        end (str): End of date range (format: YYMMDDhhmm)
+        start_date:
+        end_date:
         storm_report_path: Path to downloaded storm reports
         model_grid_path: Path to coarse grid
+        proj_str: Projection string for physical model
     Returns:
         Xarray dataset (Time, x, y) of storm report counts. Different hazards represented as variables.
     """
+
     grid = xr.open_dataset(model_grid_path)
-    valid_dates = pd.date_range(pd.Timestamp(beg), pd.Timestamp(end), freq='1h', closed='right')
+    for coord in ['lon', 'lat']:
+        grid[coord].values = grid[coord].astype('float32')
+    valid_dates = pd.date_range(start_date, end_date, freq='1h')
+
     obs_list = []
 
     for report_type in ['filtered_torn', 'filtered_wind', 'filtered_hail']:
 
         ds_list = []
 
-        obs = combine_storm_reports(beg, end, storm_report_path, report_type)
+        obs = combine_storm_reports(valid_dates.min(), valid_dates.max(), storm_report_path, report_type)
 
         for valid_date in valid_dates:
 
-            ds = grid.expand_dims('time').rename({'time': 'Time'}).assign_coords(valid_time=('Time', [valid_date]))
+            ds = grid.expand_dims('time').assign_coords(valid_time=('time', [valid_date]))
             ds[report_type.split('_')[-1]] = ds['lat'] * 0
 
             obs_sub = obs[obs['Actual_Date'] == valid_date]
-            obs_indx = find_coord_indices(ds['lon'].values, ds['lat'].values, obs_sub['Lon'], obs_sub['Lat'])
+            obs_indx = find_coord_indices(ds['lon'].values, ds['lat'].values, obs_sub['Lon'], obs_sub['Lat'], proj_str)
             for i in obs_indx:
                 if i is not None:
                     ds[report_type.split('_')[-1]][i[0], i[1]] += 1
@@ -120,102 +123,91 @@ def generate_obs_grid(beg, end, storm_report_path, model_grid_path):
                     continue
             ds_list.append(ds)
 
-        obs_list.append(xr.concat(ds_list, dim='Time'))
+        obs_list.append(xr.concat(ds_list, dim='time'))
 
     return xr.merge(obs_list)
 
 
-def generate_mode_grid(beg, end, labels, model_grid_path, min_lead_time, max_lead_time, run_date_freq='1h',
-                       bin_width=None):
+def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_str):
     """
-    Convert tabular ML storm mode predictions and probabilites to a coarse gridded product (Xarray dataset) with dimentions (Time, y, x) and associated
-    neighborhood probabilities. Supports a storm surrogate probability function (SSPF) by using min/max lead times.
+    Gather individual model probabilities and populates onto a grid along with neighborhood probabilities.
     Args:
-        beg: Beginning of date range (format: 'YYMMDDhhmm')
-        end: End of date range (format: 'YYMMDDhhmm')
-        label_path: Path to labels/ predictions
-        model: Model name (encoded into label files)
-        model_grid_path: Path to coarse grid
-        min_lead_time: Minimum leadtime for overlapping ensembles produced by HRRR
-        max_lead_time: Maximum lead time for over lapping ensembled produced by HRRR
-        run_date_freq: Frequency spacing of model run times ('{X}h', '{x}d', ...)
-        bin_width: Width of bins for ML probabilities
+        labels (dataframe): Model predictions including meta data
+        model_grid_path (str): Model path string
+        model_names (list): list of model names to populate from dataframe
+        proj_str: Projection string from physical model used top produce labels
+
     Returns:
-        Xarray dataset (Time, x, y) of storm object counts. Different modes represented as variables.
+        List of xarray datasets including all model probabilities across the grid for a given model run / forecast hour.
     """
-
+    ds_list = []
     storm_grid = xr.open_dataset(model_grid_path)
-    valid_dates = pd.date_range(pd.Timestamp(beg) + pd.Timedelta(hours=1), pd.Timestamp(end), freq='1h')
-    df_storms, storm_indxs = {}, {}
-    df_list, ds_list = [], []
+    for coord in ['lon', 'lat']:
+        storm_grid[coord].values = storm_grid[coord].astype('float32')
 
-    for valid_date in valid_dates:
-        d_sub = labels[labels['time'] == valid_date]
-        ds = storm_grid.expand_dims('time').assign_coords(valid_time=('time', [valid_date]))
+    for run_date in sorted(labels['Run_Date'].unique()):
 
-        for storm_type in ['Supercell', 'QLCS', 'Disorganized']:
+        run_labels = labels.loc[labels['Run_Date'] == run_date]
 
-            df_storms[storm_type] = d_sub[d_sub['label'] == storm_type]
+        for forecast_hour in run_labels['Forecast_Hour'].unique():
 
-            storm_indxs[storm_type] = find_coord_indices(ds['lon'].values,
-                                                         ds['lat'].values,
-                                                         df_storms[storm_type]['centroid_lon'],
-                                                         df_storms[storm_type]['centroid_lat'])
-            ds[storm_type] = ds['lat'] * 0
-            for i in storm_indxs[storm_type]:
-                ds[storm_type][i[0], i[1]] += 1
+            fh_labels = run_labels[run_labels["Forecast_Hour"] == forecast_hour]
+            valid_time = pd.to_datetime(fh_labels['Valid_Date'].unique()[0])
+            ds = storm_grid.expand_dims('time').assign_coords(init_time=('time', [pd.to_datetime(run_date)]),
+                                                              valid_time=('time', [valid_time]),
+                                                              forecast_hour=('time', [forecast_hour]))
+            for model in model_names:
 
-            ds = compute_neighborhood_prob(ds, storm_type)
-            ds[storm_type].attrs['Description'] = f'Categorical Classification of {storm_type}'
-            ds[storm_type + '_nprob'].attrs['Description'] = f'Neighborhood Probabilities for {storm_type}'
+                for storm_type in ['Supercell', 'QLCS', 'Disorganized']:
 
-            if bin_width is not None:
+                    model_mode = f'{model}_{storm_type}'
+                    mode_prob = f'{model}_{storm_type}_prob'
+                    df_probs = fh_labels[[mode_prob, 'Centroid_Lon', 'Centroid_Lat']].reset_index()
+                    df_storms = fh_labels[fh_labels[f'{model}_label'] == storm_type]
+                    counts = np.zeros(shape=(1, storm_grid.y.size, storm_grid.x.size)).astype('float32')
+                    raw_probs = counts.copy()
+                    label_indxs = find_coord_indices(ds['lon'].values,
+                                                     ds['lat'].values,
+                                                     df_storms['Centroid_Lon'],
+                                                     df_storms['Centroid_Lat'],
+                                                     proj_str)
+                    for i in label_indxs:
+                        counts[0, i[0], i[1]] = 1
 
-                bins = np.arange(0, 1 + bin_width, bin_width)
-                for indx in range(len(bins) - 1):
-                    low, high = bins[indx], bins[indx + 1]
-                    full_name = f'{storm_type}_{int(low * 100)}_{int(high * 100)}'
-                    df_storms[full_name] = d_sub[
-                        (d_sub[f'{storm_type}_prob'] > low) & (d_sub[f'{storm_type}_prob'] <= high)]
+                    storm_indxs = find_coord_indices(ds['lon'].values,
+                                                     ds['lat'].values,
+                                                     df_probs['Centroid_Lon'],
+                                                     df_probs['Centroid_Lat'],
+                                                     proj_str)
+                    for c, i in enumerate(storm_indxs):
+                        p = df_probs.loc[c, mode_prob]
+                        raw_probs[0, i[0], i[1]] = p
 
-                    storm_indxs[full_name] = find_coord_indices(ds['lon'].values,
-                                                                ds['lat'].values,
-                                                                df_storms[full_name]['centroid_lon'],
-                                                                df_storms[full_name]['centroid_lat'])
-                    ds[full_name] = ds['lat'] * 0
-                    for i in storm_indxs[full_name]:
-                        ds[full_name][i[0], i[1]] += 1
+                    probabilities = compute_neighborhood_prob(counts, sigma=1)
 
-                    ds = compute_neighborhood_prob(ds, full_name)
-                    ds[full_name].attrs['ML Prob Bin'] = f'{low} - {high} for {storm_type}'
-                    ds[full_name + '_nprob'].attrs[
-                        'Description'] = f'Neighborhood probabilities for ML probabilities in the ({low} - {high}) range for {storm_type}'
+                    ds[mode_prob] = (['time', 'y', 'x'], raw_probs)
+                    ds[model_mode] = (['time', 'y', 'x'], counts)
+                    ds[f'{model_mode}_nprob'] = (['time', 'y', 'x'], probabilities)
 
-        ds_list.append(ds)
+                    ds[mode_prob].attrs['Description'] = f'ML Probability of {storm_type}'
+                    ds[model_mode].attrs['Description'] = f'Categorical Classification of {storm_type}'
+                    ds[model_mode + '_nprob'].attrs['Description'] = f'Neighborhood Probabilities for {storm_type}'
 
-    ds_all = xr.concat(ds_list, dim='time')
+            ds_list.append(ds)
 
-    return ds_all
+    return xr.concat(ds_list, dim='time')
 
 
-def compute_neighborhood_prob(ds, var, sigma=1, use_binary=True):
+def compute_neighborhood_prob(array, sigma=1):
     """
     Compute neighborhood probabilities using a gaussian filter on a binary grid of storm locations.
     Args:
-        ds (xarray dataset): Dataset containing binary grid of storm locations
-        var (str): Variable to compute
+        array (np.array): 3D array (x, y, n) of count
         sigma: Sigma for gaussian filter (smaller will make tighter contours)
-        use_binary: Whether or not to convert grid cells with > 1 storms to 1.
-    Returns: Xarray with additional variable containing neighborhood probabilitites
-    """
-    if use_binary:
-        ds[var] = ds[var].expand_dims('time')
-        ds[f'{var}_nprob'] = ds[var].where(ds[var] <= 1, 1).groupby('time').apply(gaussian_filter, sigma=sigma)
-    else:
-        ds[var] = ds[var].expand_dims('time')
-        ds[f'{var}_nprob'] = ds[var].groupby('time').apply(gaussian_filter, sigma=sigma)
 
-    return ds
+    Returns: Gaussian smoothed probabilities
+    """
+    return gaussian_filter(array, sigma=sigma)
 
 
 def load_hrrr_data(bucket, run_date, run_hour, variables):
@@ -351,7 +343,7 @@ def get_quantiles(data, quantiles):
     return proxy_quant_df
 
 
-def get_proxy_events(data, quantile_df, variables, model_grid_path, use_saved_indices=False, index_path=None):
+def get_proxy_events(data, quantile_df, variables, model_grid_path, proj_str, use_saved_indices=False, index_path=None):
     """
     Map proxy "events" onto coarse grid for each location that exceeds specific quantile.
     Args:
@@ -359,13 +351,14 @@ def get_proxy_events(data, quantile_df, variables, model_grid_path, use_saved_in
         quantile_df: Dataframe of quantiles / variables
         variables: List of variables
         model_grid_path: Path to coarse grid to aggregate to
+        proj_str (str): Projection string
         use_saved_indices: Whether or not to load list of indices for each grid cell from fine to coarse grid
         index_path: Path to saved indices (default = None)
 
     Returns:
         Aggregated xarray dataset of proxy events (exceedence of variables above quantiles)
     """
-    indices = get_indices(data, model_grid_path, use_saved_indices, index_path)
+    indices = get_indices(data, model_grid_path, proj_str, use_saved_indices, index_path)
 
     coarse_grid = xr.open_dataset(model_grid_path)
     dummy_var = variables[0].split('-')[0]
@@ -388,12 +381,13 @@ def get_proxy_events(data, quantile_df, variables, model_grid_path, use_saved_in
     return proxy_events.assign_coords({'valid_time': data['valid_time']})
 
 
-def get_indices(data, coarse_grid_path, use_saved_indices=False, index_path=None):
+def get_indices(data, coarse_grid_path, proj_str, use_saved_indices=False, index_path=None):
     """
     Generate list of matching lat/lon indices on coarse grid from fine grid. Supports preloaded indices.
     Args:
         data: Proxy data (xarray dataset including lat/lon)
         coarse_grid_path: Path to coarse grid
+        proj_str (str): Projection string
         use_saved_indices: Boolean for using preloaded indices.
         index_path: Path to preloaded indices.
 
@@ -406,6 +400,6 @@ def get_indices(data, coarse_grid_path, use_saved_indices=False, index_path=None
         coarse_grid = xr.open_dataset(coarse_grid_path)
         lat, lon = data['lat'].values, data['lon'].values
         coarse_lat, coarse_lon = coarse_grid['lat'].values, coarse_grid['lon'].values
-        indices = find_coord_indices(coarse_lon, coarse_lat, lon.ravel(), lat.ravel())
+        indices = find_coord_indices(coarse_lon, coarse_lat, lon.ravel(), lat.ravel(), proj_str)
 
         return indices
