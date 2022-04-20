@@ -138,6 +138,7 @@ def get_storm_variables(start, end, data_path, csv_prefix, storm_vars):
     l = []
     for d in pd.date_range(start_str.replace('-', ''), end_str.replace('-', ''), freq='d'):
         file_path = join(data_path, f'{csv_prefix}{d.strftime("%Y%m%d-%H00")}.csv')
+        print(file_path)
         if exists(file_path):
             df = pd.read_csv(file_path)
             l.append(df)
@@ -566,7 +567,7 @@ def save_labels(labels, out_path, file_format):
         date_str = date.strftime("%Y-%m-%d_%H%M")
         file_name = join(out_path, f'model_labels_{date_str}.{file_format}')
         if file_format == 'csv':
-            df_sub.to_csv(file_name, index_label=False)
+            df_sub.to_csv(file_name, index=False)
         elif file_format == 'parquet':
             df_sub.to_parquet(file_name)
         else:
