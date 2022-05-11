@@ -1,1 +1,1 @@
-/glade/work/ahijevyc/NSC_objects/statisticplot.py
+/glade/u/home/ahijevyc/lib/python3.6/statisticplot.py

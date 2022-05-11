@@ -30,6 +30,7 @@ def counties():
     return cartopy.feature.ShapelyFeature(counties, cartopy.crs.PlateCarree())
 
 def update_scale_labels(scale_xy):
+    ax = plt.gca()
     # Update labels on axes with the distance along each axis.
     # Cartopy axes do not have a set_xlabel() or set_ylabel() method. Add labels manually.
     xspan = ax.get_xlim()

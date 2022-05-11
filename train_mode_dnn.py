@@ -137,6 +137,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import cross_val_score, GridSearchCV, KFold 
 from sklearn.preprocessing import StandardScaler, label_binarize
 import statisticplot # ahijevyc's module
+import tensorflow.random
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.metrics import MeanSquaredError, AUC
@@ -190,7 +191,7 @@ def main():
         logging.info(f"random seed {seed}")
         random.seed(seed)
         np.random.seed(seed)
-        tf.random.set_seed(seed)
+        tensorflow.random.set_seed(seed)
 
     dataset = 'NSC'
     trained_models_dir = '/glade/work/ahijevyc/NSC_objects'
