@@ -132,6 +132,7 @@ import pdb
 import pickle
 from hwtmode.data import decompose_circular_feature
 import random
+import scalar2vector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import cross_val_score, GridSearchCV, KFold 
