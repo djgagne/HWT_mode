@@ -1,6 +1,8 @@
 import xarray as xr
 import numpy as np
-from os.path import exists, join
+import os
+from os import makedirs
+from os.path import exists, join, isfile
 from glob import glob
 from tqdm import tqdm
 import pandas as pd
@@ -8,6 +10,7 @@ from skimage import measure
 from shapely.geometry import Polygon
 import joblib
 import s3fs
+from sklearn.preprocessing import StandardScaler
 
 
 def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: str, input_variables: list,
@@ -144,6 +147,33 @@ def combine_patch_data(patch_data, variables):
     return combined.transpose("p", "row", "col", "var_name")
 
 
+def get_storm_variables(start, end, data_path, csv_prefix, storm_vars):
+    """
+    Args:
+        start: Start date (format: YYYY-MM-DD)
+        end: End Date (format YYYY-MM-DD)
+        data_path: Base path to data
+        csv_prefix: Prefix of CSV files
+        storm_vars: Variables to pull
+
+    Returns: Numpy array (samples, variables)
+
+    """
+    start_str = (pd.Timestamp(start, tz="UTC")).strftime("%Y%m%d-%H00")
+    end_str = (pd.Timestamp(end, tz="UTC")).strftime("%Y%m%d-%H00")
+    l = []
+    for d in pd.date_range(start_str.replace('-', ''), end_str.replace('-', ''), freq='d'):
+        file_path = join(data_path, f'{csv_prefix}{d.strftime("%Y%m%d-%H00")}.csv')
+        print(file_path)
+        if exists(file_path):
+            df = pd.read_csv(file_path)
+            l.append(df)
+    storm_data = pd.concat(l).reset_index(drop=True)
+    storm_vals = storm_data[storm_vars].values
+
+    return storm_vals
+
+
 def min_max_scale(patch_data, scale_values=None):
     """
     Rescale the each variable in the combined DataArray to range from 0 to 1.
@@ -202,63 +232,107 @@ def storm_max_value(output_data: xr.DataArray, masks: xr.DataArray) -> np.ndarra
     return max_values
 
 
-def predict_labels_gmm(neuron_acts, neuron_columns, gmm_model, cluster_dict, objects=True):
+def predict_labels_gmm(neuron_acts, gmm_model, model_name, cluster_dict):
     """
     Given neuron activations, feed to GMM to produce labels and probabilities.
     Args:
         neuron_acts: Pandas dataframe of neuron activations (including meta data)
-        neuron_columns: list of columns containing the activations
         gmm_model: Trained Gaussian Mixture Model object
+        model_name: (str)
         cluster_dict: Dictionary mapping cluster numbers to storm mode
 
     Returns:
-        Pandas DataFrame of predictions and probabilities (including meta data)
+        Pandas DataFrame of predictions and probabilities
     """
 
-    prob_labels = [f'cluster_{x}_prob' for x in range(gmm_model.n_components)]
-    neuron_acts['label'] = -9999
-    neuron_acts['cluster'] = gmm_model.predict(neuron_acts.loc[:, neuron_columns])
-    neuron_acts[prob_labels] = gmm_model.predict_proba(
+    clust_prob_labels = [f'{model_name}_cluster_{x}_prob' for x in range(gmm_model.n_components)]
+    mode_prob_labels = [f'{model_name}_{x}_prob' for x in ['QLCS', 'Supercell', 'Disorganized']]
+    max_prob_label = f'{model_name}_label_prob'
+    label = f'{model_name}_label'
+    cols = clust_prob_labels + mode_prob_labels + [max_prob_label] + [label]
+
+    df = pd.DataFrame(index=range(len(neuron_acts)), columns=cols, dtype='float32')
+    df.loc[:, clust_prob_labels] = gmm_model.predict_proba(
         neuron_acts.loc[:, neuron_acts.columns.str.contains('neuron_')])
-
     for key in cluster_dict.keys():
-        neuron_acts.loc[neuron_acts['cluster'].isin(cluster_dict[key]), 'label'] = key
-        neuron_acts[f'{key}_prob'] = neuron_acts[[f'cluster_{x}_prob' for x in cluster_dict[key]]].sum(axis=1)
-        neuron_acts[key] = 0
-        neuron_acts.loc[neuron_acts['label'].isin([key]), key] = 1
-        labels_w_meta = neuron_acts.loc[:, ~neuron_acts.columns.isin(neuron_columns)]
+        df[f'{model_name}_{key}_prob'] = df[[f'{model_name}_cluster_{x}_prob' for x in cluster_dict[key]]].sum(axis=1)
+    df.loc[:, max_prob_label] = df.loc[:, mode_prob_labels].max(axis=1)
+    max_mode = df.loc[:, mode_prob_labels].idxmax(axis=1)
+    df.loc[:, label] = max_mode.apply(lambda x: x.split('_')[-2])
 
-    labels_w_meta.loc[:, 'label_int'] = labels_w_meta['label'].factorize()[0]
-    labels_w_meta.loc[:, 'label_prob'] = labels_w_meta[['Supercell_prob', 'QLCS_prob', 'Disorganized_prob']].max(axis=1)
-    if objects:
-        labels_w_meta.insert(1, 'forecast_hour', ((labels_w_meta['time'] - labels_w_meta['run_date']) /
-                                                  pd.Timedelta(hours=1)).astype('int32'))
-    return labels_w_meta
+    return df
 
 
-def predict_labels_cnn(input_data, meta_df, model, objects=True):
+def predict_labels_cnn(input_data, model, model_name):
     """
     Generate labels and probabilities from CNN and add to labels
     Args:
         input_data: Scaled input data formatted for input into CNN
-        geometry: Dataframe of storm patch geometry (including meta data)
         model: Convolutional Neural Network (CNN) Model
+        model_name: (str)
     Returns:
-        Dataframe with appended new CNN labels
+        Dataframe of CNN labels
     """
-    df = meta_df.copy()
-    preds = model.predict(input_data)
-    df['label'] = -9999
-    df['label_int'] = preds.argmax(axis=1)
-    df['label_prob'] = preds.max(axis=1)
-    for i, label in enumerate(['QLCS', 'Supercell', 'Disorganized']):
-        df[label] = 0
-        df[f'{label}_prob'] = preds[:, i]
-        df.loc[df['label_int'] == i, 'label'] = label
-        df.loc[df['label_int'] == i, label] = 1
-    if objects:
-        df.insert(1, 'forecast_hour', ((df['time'] - df['run_date']) / pd.Timedelta(hours=1)).astype('int32'))
+
+    mode_prob_labels = [f'{model_name}_{x}_prob' for x in ['QLCS', 'Supercell', 'Disorganized']]
+    max_prob_label = f'{model_name}_label_prob'
+    label = f'{model_name}_label'
+    cols = mode_prob_labels + [max_prob_label] + [label]
+    df = pd.DataFrame(index=range(len(input_data)), columns=cols, dtype='float32')
+    df.loc[:, mode_prob_labels] = model.predict(input_data)
+    df.loc[:, max_prob_label] = df.loc[:, mode_prob_labels].max(axis=1)
+    max_mode = df.loc[:, mode_prob_labels].idxmax(axis=1)
+    df.loc[:, label] = max_mode.apply(lambda x: x.split('_')[-2])
+
     return df
+
+
+def predict_labels_dnn(input_data, scale_values, model, input_vars, model_name):
+    """ Generate labels and probabilities from DNN and add to labels
+     Args:
+        input_data (df): Hagelslag csv output
+        scale_values (dict): Dictionary of Column names and scale values for StandardScaler()
+        model: Loaded Tensorflow model
+        input_vars (list): input variables to model
+        model_name: (str)
+    Returns:
+        Dataframe of labels, probabilities, and meta data.
+     """
+    scaler = StandardScaler()
+    scaler.mean_ = scale_values['mean']
+    scaler.scale_ = scale_values['std']
+
+    mode_prob_labels = [f'{model_name}_{x}_prob' for x in ['QLCS', 'Supercell', 'Disorganized']]
+    max_prob_label = f'{model_name}_label_prob'
+    label = f'{model_name}_label'
+    cols = mode_prob_labels + [max_prob_label] + [label]
+    df = pd.DataFrame(index=range(len(input_data)), columns=cols, dtype='float32')
+    df.loc[:, mode_prob_labels] = model.predict(scaler.transform(input_data[input_vars]))
+    df.loc[:, max_prob_label] = df.loc[:, mode_prob_labels].max(axis=1)
+    max_mode = df.loc[:, mode_prob_labels].idxmax(axis=1)
+    df.loc[:, label] = max_mode.apply(lambda x: x.split('_')[-2])
+
+    return df
+
+
+def merge_labels(labeled_data, storm_data, meta_vars, storm_vars):
+    """
+
+    Args:
+        labeled_data: Dictionary of pandas dataframes of labeled output from models
+        storm_data: Dataframe of tabular output from Hagelslag
+        meta_vars: List of meta variables to merge
+        storm_vars: Additional storm variables from hagelslag to keep
+
+    Returns:
+        Merged dataframe with labels, meta, and storm variables
+    """
+    labels = pd.concat([df for df in labeled_data.values()], axis=1)
+    meta_df = storm_data.loc[:, meta_vars]
+    storm_df = storm_data.loc[:, storm_vars]
+    all_data = pd.concat([meta_df, storm_df, labels], axis=1)
+
+    return all_data.astype({x: 'datetime64' for x in meta_vars if 'Date' in x})
 
 
 def lon_to_web_mercator(lon):
@@ -475,19 +549,128 @@ def load_gridded_data(data_path, physical_model, run_date, forecast_hour, input_
         return all_ds.load()
 
 
-def save_labels(labels, file_path, format):
+def load_labels(start, end, label_path, run_freq, file_format):
+    """
+    Load prediction files
+    Args:
+        start: format "YYYY-MM-DD"
+        end: format "YYY-MM-DD"
+        label_path: path to prediction data
+        run_freq: How often to look for files to load ("daily" or "hourly")
+        file_format: file format to load ("parquet", or "csv")
+
+    Returns:
+        single object with merged dataframes
+    """
+
+    labels = []
+    for run_date in pd.date_range(start, end, freq=run_freq[0]):
+        file_name = join(label_path, f'model_labels_{run_date.strftime("%Y-%m-%d_%H%M")}.{file_format}')
+        if isfile(file_name):
+            if file_format == 'parquet':
+                labels.append(pd.read_parquet(file_name))
+            elif file_format == 'csv':
+                labels.append(pd.read_csv(file_name))
+        else:
+            continue
+
+    return pd.concat(labels)
+
+
+def save_labels(labels, out_path, file_format):
     """
     Save storm mode labels to parquet or csv file.
     Args:
         labels: Pandas dataframe of storm mode labels
-        file_path: Path to be saved to
-        format: File format (accepts 'csv' or 'parquet')
+        out_path: Path to save labels to
+        file_format: File format (accepts 'csv' or 'parquet')
     Returns:
     """
-    if format == 'csv':
-        labels.to_csv(file_path, index_label=False)
-    elif format == 'parquet':
-        labels.to_parquet(file_path)
-    else:
-        raise ValueError(f'File format {format} not found. Please use "parquet" or "csv"')
-    print(f'Wrote {file_path}.')
+    for date in pd.date_range(labels["Run_Date"].min(), labels["Run_Date"].max(), freq='h'):
+        df_sub = labels.loc[labels['Run_Date'] == date]
+        if len(df_sub) == 0:
+            continue
+        date_str = date.strftime("%Y-%m-%d_%H%M")
+        file_name = join(out_path, f'model_labels_{date_str}.{file_format}')
+        if file_format == 'csv':
+            df_sub.to_csv(file_name, index=False)
+        elif file_format == 'parquet':
+            df_sub.to_parquet(file_name)
+        else:
+            raise ValueError(f'File format {file_format} not found. Please use "parquet" or "csv"')
+        print(f'Wrote {file_name}.')
+
+
+def save_gridded_labels(ds, base_path, tabular_format='csv'):
+
+    print("Writing out probabilities...")
+    run_date_str = pd.to_datetime(ds['init_time'].values).strftime('%Y%m%d%H00')
+    for run_date in run_date_str:
+        makedirs(join(base_path, run_date), exist_ok=True)
+
+    for i in range(ds.time.size):
+
+        data = ds.isel(time=[i])
+        run_date = pd.to_datetime(data['init_time'].values[0]).strftime('%Y%m%d%H00')
+        fh = data['forecast_hour'].values[0]
+        file_str = join(base_path, run_date, f"label_probabilities_{run_date}_fh_{fh:02d}.nc")
+        data.to_netcdf(file_str)
+        print("Succesfully wrote:", file_str)
+        data_tabular = data.to_dataframe(dim_order=('time', 'y', 'x'))
+        tabular_file_str = join(base_path, run_date, f"label_probabilities_{run_date}_fh_{fh:02d}.{tabular_format}")
+        if tabular_format == "csv":
+            data_tabular.to_csv(tabular_file_str, index=False)
+        elif tabular_format == "parquet":
+            data_tabular.to_parquet(tabular_file_str)
+        print("Succesfully wrote:", tabular_file_str)
+    return
+
+
+def save_gridded_reports(data, out_path):
+    """
+    Args:
+        data: netCDF of storm reports
+        out_path: Base path to save
+    Returns:
+    """
+    data.to_netcdf('combined_storm_reports.nc')
+    for valid_i, valid_time in enumerate(sorted(np.unique(data['valid_time'].values))):
+        time = pd.Timestamp(valid_time).strftime("%Y-%m-%d_%H%M")
+        ds = data.isel(Time=valid_i)
+        ds.to_netcdf(join(out_path, f'storm_reports_{time}.nc'))
+    return
+
+
+def load_probabilities(start, end, eval_path, run_freq, file_format):
+    """
+    Load evaluation files
+    Args:
+        start: format "YYYY-MM-DD"
+        end: format "YYY-MM-DD"
+        eval_path: path to evaluation data
+        run_freq: How often to look for files to load ("daily" or "hourly")
+        file_format: file format to load ("nc", "parquet", or "csv")
+
+    Returns:
+        single object with merged dataframes or netCDF files
+    """
+    files = []
+    for run_date in pd.date_range(start, end, freq=run_freq[0]).strftime("%Y%m%d%H%M"):
+        file_names = sorted(glob(join(eval_path, run_date, f'label_probabilities_{run_date}*.{file_format}')))
+        for file in file_names:
+            files.append(file)
+
+    if file_format == 'csv':
+
+        file_dfs = [pd.read_csv(f) for f in files]
+
+        return pd.concat(file_dfs)
+
+    elif file_format == 'parquet':
+        file_dfs = [pd.read_parquet(f) for f in files]
+
+        return pd.concat(file_dfs)
+
+    elif file_format == 'nc':
+
+        return xr.open_mfdataset(files, parallel=True, concat_dim='time', combine='nested').load()

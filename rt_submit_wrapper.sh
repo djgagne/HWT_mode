@@ -2,4 +2,4 @@
 
 module reset
 date
-qsubcasper /glade/scratch/cbecker/hagelslag/run_hwt_pbs.sh
+qsubcasper /glade/work/cbecker/HWT_mode/real_time_HWT_2022.sh
