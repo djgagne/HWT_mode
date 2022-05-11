@@ -1,0 +1,40 @@
+data_path: "/glade/work/cbecker/WRF_all/track_data_hrrr_3km_nc_refl/"
+csv_data_path: "/glade/work/cbecker/WRF_all/track_data_hrrr_3km_csv_refl/"
+csv_model_prefix: "track_step_NCARSTORM_d01_"
+model_grid_path: '/glade/work/cbecker/HWT_mode/model_grids/NCEP_211_grid.nc'
+patch_meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
+                 "centroid_i", "centroid_j", "track_id", "track_step", "run_date"]
+csv_meta_variables: ['Valid_Date', 'Run_Date', 'Forecast_Hour', 'Step_ID', 'Track_ID',
+                      'Duration', 'Centroid_Lon', 'Centroid_Lat']
+storm_variables: ["UP_HELI_MAX_max", "USHR6-potential_mean", "VSHR6-potential_mean",
+                "MLCAPE-potential_max", "MLCAPE-potential_mean"]
+run_start_date: "2016-01-01"
+run_end_date: "2016-12-31"
+run_freq: "daily"
+output_format: "parquet"
+output_path: "/glade/work/cbecker/HWT/HWT_evaluation_WRF/HWT_2016_validation_20220324/"
+proj_str: "+proj=lcc +lat_0=38.336433 +lon_0=-101 +lat_1=32 +lat_2=46 +a=6370000 +b=6370000"
+models:
+  semi_supervised:
+    SS:
+      model_path: "/glade/work/cbecker/HWT/HWT_models/HWT_20220318_SS/"
+      gmm_name: 'GMM'
+      label_dict: 'SS_GMM_labels_charlie_2022-03-21_1534.dict'
+      patch_radius: 32
+      input_variables: ["REFL_COM_curr", "UP_HELI_MAX_curr"]
+      output_variables: ["UP_HELI_MAX_curr"]
+  supervised:
+    CNN_1:
+      model_path: "/glade/work/cbecker/HWT/HWT_models/HWT_CNN/"
+      patch_radius: 32
+      input_variables: ["REFL_COM_curr", "UP_HELI_MAX_curr"]
+      output_variables: ["UP_HELI_MAX_curr"]
+  supervised_DNN:
+    DNN_1:
+      model_path: "/glade/work/cbecker/HWT/HWT_models/HWT_DNN/"
+      input_variables: ["Centroid_Lat", "UP_HELI_MAX_max", "Forecast_Hour",
+                        "major_axis_length", "SBLCL-potential_max",
+                        "Centroid_Lon", "U_BUNK-potential_min", "eccentricity",
+                        "W_UP_MAX_mean", "GRPL_MAX_mean"]
+
+

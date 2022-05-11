@@ -1,18 +1,12 @@
 #!/bin/bash -l
-#SBATCH --job-name=HWT_train
-#SBATCH --account=NAML0001
-#SBATCH --ntasks=16
-#SBATCH --cpus-per-task=1
-#SBATCH --time=24:00:00
-#SBATCH --partition=dav
-#SBATCH --gres=gpu:v100:1
-#SBATCH --mem=256G
-#SBATCH --output=train_mode_cnn.%j.out
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=ggantos@ucar.edu
-module load gnu/8.3.0 openmpi/3.1.4 python/3.7.5 cuda/10.1
-ncar_pylib ncar_20200417
-export PATH="/glade/work/ggantos/ncar_20200417/bin:$PATH"
+#PBS -N mode_cnn
+#PBS -A NAML0001
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -o train_mode.out
+#PBS -q casper
+#PBS -l select=1:ncpus=8:ngpus=1:mem=128GB -l gpu_type=v100
 
-pip install /glade/work/ggantos/HWT_mode/.
-python -u train_mode_cnn.py config/ws_mode_cnn_train_201210_uh_masked.yml -t -i -p
+module load cuda/11 cudnn
+conda activate hwt
+python -u train_mode_cnn.py config/train_cnn_gmm.yml -t -i -u -p2

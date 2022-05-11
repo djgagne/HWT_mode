@@ -1,0 +1,32 @@
+name: hwtmode
+channels:
+  - conda-forge
+dependencies:
+  - python=3.7
+  - pip
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas==1.2.3
+  - xarray
+  - pyyaml
+  - netcdf4
+  - scikit-learn
+  - seaborn
+  - pyproj
+  - cartopy
+  - tqdm
+  - memory_profiler
+  - scikit-image
+  - pyarrow
+  - s3fs
+  - joblib
+  - flake8
+  - jupyterlab
+  - ipywidgets
+  - geopandas
+  - pip:
+    - tensorflow==2.4.0
+    - tensorflow-probability==0.12.2
+    - pytest
+    - .
