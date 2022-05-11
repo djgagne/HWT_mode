@@ -95,6 +95,32 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
     return input_data, output_data, meta_data
 
 
+
+def decompose_circular_feature(df: pd.DataFrame, *features, period=2*np.pi, drop=True):
+    import logging
+    """
+    Decompose a circular feature like azimuth, LST, or orientation into its 1) sine and 2) cosine components.
+    Drop original circular feature, unless optional drop argument is set explicitly to False.
+
+    Args:
+        df: :class:`pandas.DataFrame` being manipulated
+        features: feature name(s)
+        period (optional): period of cycle (default 2*np.pi)
+        drop (optional): if True, drop original feature(s)
+
+    Returns:
+        df: pandas.DataFrame with sine and cosine components of feature(s) 
+    """
+    for feature in features:
+        logging.info(f"{feature} sin and cos components, period={period}")
+        df[feature+"_sin"] = np.sin(df[feature] * 2*np.pi/period)
+        df[feature+"_cos"] = np.cos(df[feature] * 2*np.pi/period)
+        if drop:
+            logging.debug(f"drop {feature} column from dataframe")
+            df = df.drop(columns=feature)
+    return df
+
+
 def get_meta_scalars(meta_data):
     meta_vars = list(meta_data.data_vars.keys())
     scalar_vars = []
