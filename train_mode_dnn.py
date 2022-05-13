@@ -9,6 +9,7 @@ import pandas as pd
 import pdb
 import pickle
 from hwtmode.data import decompose_circular_feature, uvmagnitude
+from hwtmode.evaluation import brier_score, brier_skill_score
 from hwtmode.statisticplot import count_histogram, reliability_diagram, ROC_curve
 import random
 from sklearn.ensemble import RandomForestClassifier
