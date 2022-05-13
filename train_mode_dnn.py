@@ -9,13 +9,12 @@ import pandas as pd
 import pdb
 import pickle
 from hwtmode.data import decompose_circular_feature, uvmagnitude
+from hwtmode.statisticplot import count_histogram, reliability_diagram, ROC_curve
 import random
-import scalar2vector
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import cross_val_score, GridSearchCV, KFold 
 from sklearn.preprocessing import StandardScaler, label_binarize
-import statisticplot # ahijevyc's module
 import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Dense, Dropout
@@ -382,9 +381,9 @@ def main():
                 ax2 = plt.subplot2grid((3,2), (2,0), rowspan=1, sharex=ax1)
                 ROC_ax = plt.subplot2grid((3,2), (0,1), rowspan=2)
                 for i, label in enumerate(labels.cat.categories):
-                    reliability_diagram, = statisticplot.reliability_diagram(ax1, labels[test_indices] == label, y_pred[:,i], label=label)
-                    counts, bins, patches = statisticplot.count_histogram(ax2, y_pred[:,i])
-                    rc = statisticplot.ROC_curve(ROC_ax, labels[test_indices] == label, y_pred[:,i], label=label, fill=False, plabel=False)
+                    reliability, = reliability_diagram(ax1, labels[test_indices] == label, y_pred[:,i], label=label)
+                    counts, bins, patches = count_histogram(ax2, y_pred[:,i])
+                    rc = ROC_curve(ROC_ax, labels[test_indices] == label, y_pred[:,i], label=label, fill=False, plabel=False)
                 fig.suptitle(f"{suite}")
                 fig.text(0.5, 0.01, ' '.join(features), wrap=True, fontsize=6)
                 ofile = f"nn/{savedmodel}.statcurves.png"
