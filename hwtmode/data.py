@@ -232,6 +232,35 @@ def storm_max_value(output_data: xr.DataArray, masks: xr.DataArray) -> np.ndarra
     return max_values
 
 
+def uvmagnitude(df: pd.DataFrame, drop=True):
+    import logging
+    """
+    Look for U/V component pairs, derive magnitude.
+
+    Args:
+        df: Pandas DataFrame
+
+    Returns:
+        df: Pandas DataFrame with magnitudes
+    """
+
+    possible_components = [f'SHR{z}{potential}{sfx}' for z in "136" for potential in ["","-potential"] for sfx in ["_min","_mean","_max"]]
+    possible_components += [f'10{potential}{sfx}' for potential in ["","-potential"] for sfx in ["_min","_mean","_max"]]
+    logging.debug(f"uvmagnitude: possible_components={possible_components}")
+    # process possible u/v components
+    for possible_component in possible_components:
+        uc = "U"+possible_component 
+        vc = "V"+possible_component 
+        if uc in df.columns and vc in df.columns:
+            logging.info(f"calculate {possible_component} magnitude")
+            df[possible_component] = ( df[uc]**2 + df[vc]**2 )**0.5
+            if drop:
+                logging.debug(f"drop {[uc,vc]} columns from dataframe")
+                df = df.drop(columns=[uc,vc])
+    return df
+
+
+
 def predict_labels_gmm(neuron_acts, gmm_model, model_name, cluster_dict):
     """
     Given neuron activations, feed to GMM to produce labels and probabilities.

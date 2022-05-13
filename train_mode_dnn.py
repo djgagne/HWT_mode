@@ -8,7 +8,7 @@ import os
 import pandas as pd
 import pdb
 import pickle
-from hwtmode.data import decompose_circular_feature
+from hwtmode.data import decompose_circular_feature, uvmagnitude
 import random
 import scalar2vector
 from sklearn.ensemble import RandomForestClassifier
@@ -56,7 +56,7 @@ def get_other_validation_data(debug=False):
     df = decompose_circular_feature(df, "orientation", period=np.pi) # orientation cycles at pi, not 2*pi
     df.loc[:,"Local_Solar_Hour"] = df["Valid_Hour_UTC"] + df["Centroid_Lon"]/15.
     df = decompose_circular_feature(df, "Local_Solar_Hour", period=24)
-    df = scalar2vector.uvmagnitude(df, drop=False)
+    df = uvmagnitude(df, drop=False)
     return df
 
 feature_dict = {
