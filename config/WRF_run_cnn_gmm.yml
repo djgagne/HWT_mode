@@ -1,5 +1,4 @@
-data_path: "/glade/work/cbecker/WRF_all/track_data_hrrr_3km_nc_refl/"
-csv_data_path: "/glade/work/cbecker/WRF_all/track_data_hrrr_3km_csv_refl/"
+data_path: "/glade/scratch/cbecker/WRF_all_new_obj_bounds/track_data_hrrr_3km_nc_refl/"
 csv_model_prefix: "track_step_NCARSTORM_d01_"
 model_grid_path: '/glade/work/cbecker/HWT_mode/model_grids/NCEP_211_grid.nc'
 patch_meta_variables: ["masks", "i", "j", "lon", "lat", "time", "centroid_lon", "centroid_lat",
@@ -8,18 +7,20 @@ csv_meta_variables: ['Valid_Date', 'Run_Date', 'Forecast_Hour', 'Step_ID', 'Trac
                       'Duration', 'Centroid_Lon', 'Centroid_Lat']
 storm_variables: ["UP_HELI_MAX_max", "USHR6-potential_mean", "VSHR6-potential_mean",
                 "MLCAPE-potential_max", "MLCAPE-potential_mean"]
-run_start_date: "2016-01-01"
-run_end_date: "2016-12-31"
+run_start_date: "2010-01-01"
+run_end_date: "2019-12-31"
 run_freq: "daily"
-output_format: "parquet"
-output_path: "/glade/work/cbecker/HWT/HWT_evaluation_WRF/HWT_2016_validation_20220324/"
+output_format: "csv"
+use_full_obj: 1
+output_path: "/glade/scratch/cbecker/WRF_all_new_obj_bounds/output/"
 proj_str: "+proj=lcc +lat_0=38.336433 +lon_0=-101 +lat_1=32 +lat_2=46 +a=6370000 +b=6370000"
 models:
   semi_supervised:
     SS:
       model_path: "/glade/work/cbecker/HWT/HWT_models/HWT_20220318_SS/"
       gmm_name: 'GMM'
-      label_dict: 'SS_GMM_labels_charlie_2022-03-21_1534.dict'
+#      label_dict: 'SS_GMM_labels_charlie_2022-03-21_1534.dict'
+      label_dict: 'SS_GMM_labels_charlie_2022-03-22_1636.dict'
       patch_radius: 32
       input_variables: ["REFL_COM_curr", "UP_HELI_MAX_curr"]
       output_variables: ["UP_HELI_MAX_curr"]
