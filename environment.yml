@@ -7,7 +7,7 @@ dependencies:
   - numpy
   - scipy
   - matplotlib
-  - pandas==1.2.3
+  - pandas
   - xarray
   - pyyaml
   - netcdf4
@@ -20,13 +20,10 @@ dependencies:
   - scikit-image
   - pyarrow
   - s3fs
-  - joblib
-  - flake8
-  - jupyterlab
-  - ipywidgets
-  - geopandas
   - pip:
     - tensorflow==2.4.0
     - tensorflow-probability==0.12.2
     - pytest
+    - geopandas
+    - regionmask
     - .
