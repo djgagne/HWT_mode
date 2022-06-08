@@ -10,6 +10,8 @@ from pyproj import Proj
 from scipy.spatial.distance import cdist
 import regionmask
 from hwtmode.data import load_geojson_objs
+import warnings
+warnings.filterwarnings('ignore')
 
 
 def find_coord_indices(lon_array, lat_array, lon_points, lat_points, proj_str):
@@ -167,7 +169,7 @@ def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_st
         storm_grid[coord].values = storm_grid[coord].astype('float32')
 
     for run_date in sorted(labels['Run_Date'].unique()):
-
+        print(run_date)
         run_labels = labels.loc[labels['Run_Date'] == run_date]
         if obj:
             start = pd.to_datetime(run_labels['Run_Date'].min()).strftime("%Y%m%d-%H%M")
@@ -220,12 +222,12 @@ def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_st
 
             ds_list.append(ds)
 
-        merged_ds = xr.concat(ds_list, dim='time')
+    merged_ds = xr.concat(ds_list, dim='time')
 
-        if run_labels['Forecast_Hour'].nunique() < 17:
-            merged_ds = add_missing_forecast_hours(merged_ds, 17)
-        elif (run_labels['Forecast_Hour'].nunique() > 17) & (run_labels['Forecast_Hour'].nunique() < 47):
-            merged_ds = add_missing_forecast_hours(merged_ds, 47)
+    # if run_labels['Forecast_Hour'].nunique() < 17:
+    #     merged_ds = add_missing_forecast_hours(merged_ds, 17)
+    # elif (run_labels['Forecast_Hour'].nunique() > 17) & (run_labels['Forecast_Hour'].nunique() < 47):
+    #     merged_ds = add_missing_forecast_hours(merged_ds, 47)
 
     return merged_ds
 
