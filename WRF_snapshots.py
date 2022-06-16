@@ -29,7 +29,7 @@ def counties():
     # Create custom cartopy feature that can be added to the axes.
     return cartopy.feature.ShapelyFeature(counties, cartopy.crs.PlateCarree())
 
-def update_scale_labels(scale_xy):
+def update_scale_labels(scale_xy, ax):
     # Update labels on axes with the distance along each axis.
     # Cartopy axes do not have a set_xlabel() or set_ylabel() method. Add labels manually.
     xspan = ax.get_xlim()
@@ -360,7 +360,7 @@ def main():
                     linewidths=2., linestyles="solid", zorder=2, transform=cartopy.crs.PlateCarree())
 
         # Update axes labels (distance along axes).
-        update_scale_labels(scale_xy)
+        update_scale_labels(scale_xy, ax)
 
         if arrow:
             # Storm motion vector points from previous location to present location.
