@@ -11,6 +11,7 @@ from shapely.geometry import Polygon
 import joblib
 import s3fs
 from sklearn.preprocessing import StandardScaler
+import geopandas as gpd
 
 
 def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: str, input_variables: list,
@@ -604,6 +605,18 @@ def load_labels(start, end, label_path, run_freq, file_format):
             continue
 
     return pd.concat(labels)
+
+def load_geojson_objs(start, end, path, run_freq):
+
+    objects = []
+    for run_date in pd.date_range(start, end, freq=run_freq[0]):
+        file_name = join(path, f'NCARSTORM_d01_{run_date.strftime("%Y%m%d-%H%M")}.json')
+        if isfile(file_name):
+            objects.append(gpd.read_file(file_name))
+        else:
+            continue
+
+    return pd.concat(objects)
 
 
 def save_labels(labels, out_path, file_format):
