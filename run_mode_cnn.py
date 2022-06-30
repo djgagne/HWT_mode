@@ -124,7 +124,9 @@ def main():
         nprobs = get_neighborhood_probabilities(labels=labels,
                                                 model_grid_path=config["model_grid_path"],
                                                 model_names=model_names,
-                                                proj_str=config["proj_str"])
+                                                proj_str=config["proj_str"],
+                                                obj=config['use_full_obj'],
+                                                json_path=config["csv_data_path"].replace("csv", "json"))
 
         save_gridded_labels(ds=nprobs,
                             base_path=join(config["output_path"], "evaluation"),
