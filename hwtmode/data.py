@@ -97,7 +97,7 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
 
 
 
-def decompose_circular_feature(df: pd.DataFrame, *features, period=2*np.pi, drop=True):
+def decompose_circular_feature(df: pd.DataFrame, *features, period=2*np.pi, drop=True, clobber=False):
     import logging
     """
     Decompose a circular feature like azimuth, LST, or orientation into its 1) sine and 2) cosine components.
@@ -113,11 +113,20 @@ def decompose_circular_feature(df: pd.DataFrame, *features, period=2*np.pi, drop
         df: pandas.DataFrame with sine and cosine components of feature(s) 
     """
     for feature in features:
-        logging.info(f"{feature} sin and cos components, period={period}")
-        df[feature+"_sin"] = np.sin(df[feature] * 2*np.pi/period)
-        df[feature+"_cos"] = np.cos(df[feature] * 2*np.pi/period)
+        if feature+"_sin" in df and not clobber:
+            logging.warning(f"{feature}_sin already present. Keep old values.")
+        else:
+            logging.info(f"derive sin component of {feature}, period={period}")
+            df[feature+"_sin"] = np.sin(df[feature] * 2*np.pi/period)
+
+        if feature+"_cos" in df and not clobber:
+            logging.warning(f"{feature}_cos already present. Keep old values.")
+        else:
+            logging.info(f"derive cos component of {feature}, period={period}")
+            df[feature+"_cos"] = np.cos(df[feature] * 2*np.pi/period)
+
         if drop:
-            logging.debug(f"drop {feature} column from dataframe")
+            logging.debug(f"drop {feature} column from DataFrame")
             df = df.drop(columns=feature)
     return df
 

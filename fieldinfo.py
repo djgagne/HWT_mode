@@ -148,7 +148,7 @@ fieldinfo = {
  'bunkmag'      :{ 'levels' : [20,25,30,35,40,45,50,55,60], 'cmap':readNCLcm('wind_17lev')[1:], 'fname':['U_COMP_STM_6KM', 'V_COMP_STM_6KM'], 'filename':'upp' },
  'speed10m'     :{ 'levels' : [3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,48,51], 'cmap': readNCLcm('wind_17lev')[1:],'fname'  : ['U10', 'V10'], 'filename':'diag'},
  'speed10m-tc'  :{ 'levels' : [6,12,18,24,30,36,42,48,54,60,66,72,78,84,90,96,102] , 'cmap': readNCLcm('wind_17lev')[1:],'fname'  : ['U10', 'V10'], 'filename':'diag'},
- 'stp'          :{ 'levels' : [0.5,0.75,1.0,1.5,2.0,3.0,4.0,5.0,6.0,7.0,8.0], 'cmap':readNCLcm('perc2_9lev'), 'fname':['SBCAPE','LCL_HEIGHT','SR_HELICITY_1KM','UBSHR6','VBSHR6'], 'arraylevel':[None,None,None,None,None], 'filename':'upp'},
+ 'stp'          :{ 'levels' : [0.5,0.75,1.0,1.5,2.0,3.0,4.0,5.0,6.0,7.0,8.0], 'cmap':readNCLcm('perc2_9lev'), 'fname':['CAPE_221_SFC','CIN_221_SFC','HLCY_221_HTGY'], 'arraylevel':[None,None,None,None,None], 'filename':'upp'},
  'uhratio'      :{ 'levels' : [0.1,0.3,0.5,0.7,0.9,1.0,1.1,1.2,1.3,1.4,1.5], 'cmap':readNCLcm('perc2_9lev'), 'fname':['updraft_helicity_max03', 'updraft_helicity_max'], 'filename':'diag'},
  'ptype'        :{ 'levels' : [0.01,0.1,0.25,0.5,0.75,1,1.5,2,2.5,3,3.5,4], 'cmap':['#dddddd','#aaaaaa']+readNCLcm('precip3_16lev')[1:], 'fname':['AFWA_RAIN_HRLY', 'AFWA_FZRA_HRLY', 'AFWA_ICE_HRLY', 'AFWA_SNOWFALL_HRLY'], 'filename':'wrfout'},
  'winter'        :{ 'levels' : [0.01,0.1,0.25,0.5,0.75,1,1.5,2,2.5,3,3.5,4], 'cmap':['#dddddd','#aaaaaa']+readNCLcm('precip3_16lev')[1:], 'fname':['AFWA_RAIN_HRLY', 'AFWA_FZRA_HRLY', 'AFWA_ICE_HRLY', 'AFWA_SNOWFALL_HRLY'], 'filename':'wrfout'},
