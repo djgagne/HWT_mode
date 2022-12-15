@@ -87,13 +87,13 @@ for type in categories.keys():
 # predictions array as shape (examples, 3)
 num_models = len(glob.glob('./%s/cnn_test*'%expname))
 models = [ 'cnn_test_%03d'%i for i in range(num_models) ]
+predictions_avg = 0
 for mod in models:
     
     predictions_all = df[[ '%s_%d'%(mod,d) for d in unique_labels ]]
     predictions = np.argmax(predictions_all.values, axis=1)
     print('%d storms in validation set'%predictions.size)
-    try: predictions_avg += predictions_all.values
-    except: predictions_avg = predictions_all.values
+    predictions_avg += predictions_all.values
 
     # AUC/BS/BSS for three modes
     print(mod)
