@@ -8,14 +8,16 @@ import os
 import pandas as pd
 import pdb
 import pickle
-from hwtmode.data import decompose_circular_feature
+from hwtmode.data import decompose_circular_feature, uvmagnitude
 from hwtmode.evaluation import brier_score, brier_skill_score
+from hwtmode.statisticplot import count_histogram, reliability_diagram, ROC_curve
 import random
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import cross_val_score, GridSearchCV, KFold 
 from sklearn.preprocessing import StandardScaler, label_binarize
 import statisticplot # ahijevyc's module
+import tensorflow as tf
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.metrics import MeanSquaredError, AUC
@@ -23,7 +25,6 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
 import sys, time
 import yaml
-import tensorflow as tf
 
 def baseline_model(input_dim=None, name=None,numclasses=None, neurons=16, layer=2, optimizer='adam', dropout=0):
 
@@ -56,7 +57,7 @@ def get_other_validation_data(debug=False):
     df = decompose_circular_feature(df, "orientation", period=np.pi) # orientation cycles at pi, not 2*pi
     df.loc[:,"Local_Solar_Hour"] = df["Valid_Hour_UTC"] + df["Centroid_Lon"]/15.
     df = decompose_circular_feature(df, "Local_Solar_Hour", period=24)
-    df = scalar2vector.uvmagnitude(df, drop=False)
+    df = uvmagnitude(df, drop=False)
     return df
 
 feature_dict = {
@@ -383,9 +384,9 @@ def main():
                 ax2 = plt.subplot2grid((3,2), (2,0), rowspan=1, sharex=ax1)
                 ROC_ax = plt.subplot2grid((3,2), (0,1), rowspan=2)
                 for i, label in enumerate(labels.cat.categories):
-                    reliability_diagram, = statisticplot.reliability_diagram(ax1, labels[test_indices] == label, y_pred[:,i], label=label)
-                    counts, bins, patches = statisticplot.count_histogram(ax2, y_pred[:,i])
-                    rc = statisticplot.ROC_curve(ROC_ax, labels[test_indices] == label, y_pred[:,i], label=label, fill=False, plabel=False)
+                    reliability, = reliability_diagram(ax1, labels[test_indices] == label, y_pred[:,i], label=label)
+                    counts, bins, patches = count_histogram(ax2, y_pred[:,i])
+                    rc = ROC_curve(ROC_ax, labels[test_indices] == label, y_pred[:,i], label=label, fill=False, plabel=False)
                 fig.suptitle(f"{suite}")
                 fig.text(0.5, 0.01, ' '.join(features), wrap=True, fontsize=6)
                 ofile = f"nn/{savedmodel}.statcurves.png"

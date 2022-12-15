@@ -2,23 +2,23 @@
 
 Copied from WRF_SPC.py Sep 20, 2019.
 
-Given a model initialization time and a valid time, plot crefuh around hagelslag objects. 
+Given a model initialization time and a valid time, plot crefuh around hagelslag objects.
 
 """
 import argparse
+import cartopy
 import datetime
+import fieldinfo  # levels and color tables - Adapted from /glade/u/home/wrfrt/wwe/python_scripts/fieldinfo.py 20190125.
+import logging
+from netCDF4 import Dataset
+import numpy as np
+import pandas as pd
 import pdb
 import os
 import sys
-import pandas as pd
-import numpy as np
-import fieldinfo # levels and color tables - Adapted from /glade/u/home/wrfrt/wwe/python_scripts/fieldinfo.py 20190125.
 from wrf import to_np, getvar, get_cartopy, latlon_coords
-from metpy.units import units
-from netCDF4 import Dataset
-import cartopy
 import matplotlib
-matplotlib.use("Agg") # allows dav slurm jobs
+matplotlib.use("Agg")  # allows dav slurm jobs
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
@@ -41,7 +41,6 @@ def update_scale_labels(scale_xy, ax):
     y.set_text(ylabel)
 
 
-
 def main():
     # =============Arguments===================
     parser = argparse.ArgumentParser(description = "Plot WRF and SPC storm reports",
@@ -50,24 +49,24 @@ def main():
     parser.add_argument("-b", "--barb", choices=["shr06", "wind10m",""], type=str, default="wind10m", help='wind barbs')
     parser.add_argument("-c", "--contour", type=str, default=None, help='contour field')
     parser.add_argument("-o", "--outdir", type=str, default='.', help="name of output path")
-    parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side in km", 
-            default=[175.,175.,175.,175.]) 
-    parser.add_argument("--timeshift", type=int, default=0, help="hours to shift background field") 
+    parser.add_argument("-p", "--padding", type=float, nargs=4, help="padding on west, east, south and north side in km",
+            default=[175.,175.,175.,175.])
+    parser.add_argument("--timeshift", type=int, default=0, help="hours to shift background field")
     parser.add_argument("--arrow", action='store_true', help="Add storm motion vector from hagelslag")
     parser.add_argument("--no-fineprint", action='store_true', help="Don't write image details at bottom")
     parser.add_argument("--force_new", action='store_true', help="overwrite any old outfile, if it exists")
     parser.add_argument("--no-counties", action='store_true', help="Don't draw county borders (can be slow)")
     parser.add_argument("--no-mask", action='store_true', help="Don't draw object mask")
-    parser.add_argument('-i', "--idir", type=str, default="/glade/p/mmm/parc/sobash/NSC/3KM_WRF_POST_12sec_ts", 
+    parser.add_argument('-i', "--idir", type=str, default="/glade/p/mmm/parc/sobash/NSC/3KM_WRF_POST_12sec_ts",
             help="path to WRF output files")
     parser.add_argument('-s', "--stride", type=int, default=1, help="plot every stride points. speed things up with stride>1")
-    parser.add_argument('-t', "--trackdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_csv", 
+    parser.add_argument('-t', "--trackdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_csv",
             help="path to hagelslag track-step files")
-    parser.add_argument("--patchdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_nc", 
+    parser.add_argument("--patchdir", type=str, default="/glade/scratch/ahijevyc/track_data_ncarstorm_3km_REFL_1KM_AGL_nc",
             help="path to hagelslag netCDF patches")
-    parser.add_argument("initial_time", type=lambda d: datetime.datetime.strptime(d, '%Y%m%d%H'), 
+    parser.add_argument("initial_time", type=lambda d: datetime.datetime.strptime(d, '%Y%m%d%H'),
             help="model initialization date and hour, yyyymmddhh")
-    parser.add_argument("valid_time", type=lambda d: datetime.datetime.strptime(d, '%Y%m%d%H'), 
+    parser.add_argument("valid_time", type=lambda d: datetime.datetime.strptime(d, '%Y%m%d%H'),
             help="model valid date and hour, yyyymmddhh")
     parser.add_argument("-d", "--debug", action='store_true')
 
@@ -93,10 +92,9 @@ def main():
     valid_time   = args.valid_time
     debug        = args.debug
 
-    if debug:
-        print(args)
+    logging.debug(args)
 
-    # Derive lead time and make sure it is between 12 and 36 hours. 
+    # Derive lead time and make sure it is between 12 and 36 hours.
     lead_time = valid_time - initial_time
 
     if lead_time < datetime.timedelta(hours=7) or lead_time > datetime.timedelta(hours=36):
@@ -106,13 +104,12 @@ def main():
     # Read hagelslag track_step csv file into pandas DataFrame.
     mysterious_suffix = '' # '_13' or '_12'
     tracks = trackdir + '/' + initial_time.strftime('track_step_NCARSTORM_d01_%Y%m%d-%H%M')+mysterious_suffix+'.csv'
-    if debug:
-        print("reading csv file",tracks)
+    logging.debug(f"reading csv file {tracks}")
     df = pd.read_csv(tracks, parse_dates=['Run_Date', 'Valid_Date'])
     # Throw out everything except requested valid times.
     df = df[df.Valid_Date == valid_time]
     if df.empty:
-        print("csv track step file", tracks, " has no objects at requested valid time",valid_time,". That is probably fine.")
+        logging.warning(f"csv track step file {tracks} has no objects at requested valid time {valid_time}. That is probably fine.")
         sys.exit(0)
 
     # Throw out weak UH objects
@@ -128,14 +125,14 @@ def main():
             print(df[~igood_UH][["Step_ID","UP_HELI_MAX_max"]])
     df = df[igood_UH]
     if df.empty:
-        print("csv track step file", tracks, " has no good UH objects at requested valid time",valid_time,". That is probably fine.")
+        logging.warning(f"csv track step file {tracks} has no good UH objects at requested valid time {valid_time} That is probably fine.")
         sys.exit(0)
 
     # List of all png files that will be created.
     pngfiles = odir + '/' + df.Step_ID + "_" + "{:+1.0f}".format(timeshift) + ".png"
     if all([os.path.isfile(p) for p in pngfiles]) and not force_new:
-        # Exit if pngs all already exist and force_new option was not used. 
-        print(initial_time, valid_time, "{:+1.0f}".format(timeshift) +"h",fill,"finished. Moving on.")
+        # Exit if pngs all already exist and force_new option was not used.
+        logging.info(f"{initial_time} {valid_time} {timeshift:+1.0f}h {fill} finished. Moving on.")
         sys.exit(0)
 
     if not no_mask:
@@ -154,8 +151,7 @@ def main():
 
     # Get color map, levels, and netCDF variable name appropriate for requested variable (from fieldinfo module).
     info = fieldinfo.nsc[fill]
-    if debug:
-        print("found nsc in fieldinfo.py. Using",info)
+    logging.debug(f"found nsc in fieldinfo.py. Using {info}")
     cmap = colors.ListedColormap(info['cmap'])
     levels = info['levels']
     fill = info['fname'][0]
@@ -167,17 +163,16 @@ def main():
     if debug: print("About to open "+wrfout)
     wrfnc = Dataset(wrfout,"r")
     if fill not in wrfnc.variables:
-        print("variable "+ fill + " not found")
-        print("choices:", wrfnc.variables.keys())
+        logging.error(f"fill variable {fill} not found")
+        logging.error(f"choices: {wrfnc.variables.keys()}")
         sys.exit(1)
 
     # Get a 2D var from wrfout file. It has projection info.
-    if debug:
-        print("getvar...")
+    logging.debug("getvar...")
     cvar = getvar(wrfnc,fill)
     wrflat, wrflon = latlon_coords(cvar)
     # get cartopy mapping object
-    if debug: print("get_cartopy...")
+    logging.debug("get_cartopy...")
     WRF_proj = get_cartopy(cvar)
     fineprint0 = 'fill '+fill+" ("+cvar.units+") "
 
@@ -208,12 +203,12 @@ def main():
     if cvar.min() > levels[-1] or cvar.max() < levels[0]:
         print('levels',levels,'out of range of cvar', cvar.values.min(), cvar.values.max())
         sys.exit(1)
-    if debug: 
+    if debug:
         print('levels:',levels, 'cmap:', cmap.colors)
 
     if debug:
         print("plotting filled contour",cvar.name,"...")
-        
+
     cfill = ax.contourf(x, y, to_np(cvar[::stride,::stride]), levels=levels, cmap=cmap)
 
     # Color bar
@@ -228,7 +223,7 @@ def main():
 
     # Create 2 annotation object placeholders for spatial scale. Will be updated with each set_extent().
     scale_kw = {"ha":"center","rotation_mode":"anchor","xycoords":"axes fraction","textcoords":"offset points"}
-    scale_xy = ( ax.annotate("", (0.5, 0), xytext=(0,-5), va='top',  rotation='horizontal', **scale_kw), 
+    scale_xy = ( ax.annotate("", (0.5, 0), xytext=(0,-5), va='top',  rotation='horizontal', **scale_kw),
                  ax.annotate("", (0, 0.5), xytext=(-5,0), va='bottom', rotation='vertical', **scale_kw) )
 
 
@@ -244,10 +239,10 @@ def main():
             print("Filled contour UH >",max_uh_threshold)
             # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty.
             # See https://github.com/SciTools/cartopy/issues/1290
-            cs1 = ax.contourf(x, y, to_np(max_uh), levels=[max_uh_threshold,1000], colors='black', 
+            cs1 = ax.contourf(x, y, to_np(max_uh), levels=[max_uh_threshold,1000], colors='black',
                     alpha=0.3 )
             if debug: print("solid contour UH >",max_uh_threshold)
-            cs2 = ax.contour(x, y, to_np(max_uh), levels=max_uh_threshold*np.arange(1,6), colors='black', 
+            cs2 = ax.contour(x, y, to_np(max_uh), levels=max_uh_threshold*np.arange(1,6), colors='black',
                     linestyles='solid', linewidths=0.4 )
             fineprint0 += "UH>"+str(max_uh_threshold) +" "+ max_uh.units + " "
             # Oddly, the zero contour is plotted if there are no other valid contours
@@ -259,14 +254,14 @@ def main():
 
         if min_uh.min() < min_uh_threshold:
             print("Filled UH contour <",min_uh_threshold)
-            # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty. 
+            # Don't use contourf if the data fall outside the levels range. You will get ValueError: 'bboxes' cannot be empty.
             # See https://github.com/SciTools/cartopy/issues/1290
-            negUH1 = ax.contourf(x, y, to_np(min_uh), levels=[-1000, min_uh_threshold], colors='black', 
+            negUH1 = ax.contourf(x, y, to_np(min_uh), levels=[-1000, min_uh_threshold], colors='black',
                     alpha=0.3 )
             if debug: print("dashed contour UH <",min_uh_threshold)
-            negUH2 = ax.contour(x, y, to_np(min_uh), levels=min_uh_threshold*np.arange(6,0,-1), colors='black', 
+            negUH2 = ax.contour(x, y, to_np(min_uh), levels=min_uh_threshold*np.arange(6,0,-1), colors='black',
                     linestyles='dashed', linewidths=0.4 )
-            fineprint0 += "UH<"+str(-min_uh_threshold) +" "+ min_uh.units + " " 
+            fineprint0 += "UH<"+str(-min_uh_threshold) +" "+ min_uh.units + " "
             if 0.0 in negUH2.levels:
                 print("neg uh has a zero contour. Hide it")
                 if debug:
@@ -299,8 +294,8 @@ def main():
 
         if debug: print("plotBarbs: starting barbs")
         # barbs already oriented with map projection. In Basemap, we needed to use m.rotate_vector().
-        cs2 = ax.barbs(x[::skip*stride,::skip*stride], y[::skip*stride,::skip*stride], 
-                to_np(u)[::skip*stride,::skip*stride], to_np(v)[::skip*stride,::skip*stride], color='black', 
+        cs2 = ax.barbs(x[::skip*stride,::skip*stride], y[::skip*stride,::skip*stride],
+                to_np(u)[::skip*stride,::skip*stride], to_np(v)[::skip*stride,::skip*stride], color='black',
                 alpha=alpha, length=5, linewidth=0.25, sizes={'emptybarb':0.05} )
         fineprint0 += "wind barb (" + u.units + ") "
 
@@ -317,8 +312,8 @@ def main():
         alpha=0.4
 
         if debug: print("starting "+contour+" contours")
-        cr = ax.contour(x[::stride,::stride], y[::stride,::stride], 
-                cvar[::stride,::stride], levels=levels, colors='black', alpha=alpha, 
+        cr = ax.contour(x[::stride,::stride], y[::stride,::stride],
+                cvar[::stride,::stride], levels=levels, colors='black', alpha=alpha,
                 linewidths=0.75)
         clab = ax.clabel(cr, inline=False, fmt='%.0f', fontsize=6)
         fineprint0 += "contour "+contour+" (" + cvar.units + ") "
@@ -356,7 +351,7 @@ def main():
             mask = masks[ip]
             mlon = mlons[ip]
             mlat = mlats[ip]
-            mcntr = ax.contour(mlon, mlat, mask, levels=[0,10], colors='black', alpha=0.6, 
+            mcntr = ax.contour(mlon, mlat, mask, levels=[0,10], colors='black', alpha=0.6,
                     linewidths=2., linestyles="solid", zorder=2, transform=cartopy.crs.PlateCarree())
 
         # Update axes labels (distance along axes).
@@ -364,11 +359,11 @@ def main():
 
         if arrow:
             # Storm motion vector points from previous location to present location.
-            smv = ax.arrow(x-u, y-v, u, v, color=mcntr.colors, alpha=mcntr.get_alpha(), # Can't get head to show. Tried quiver, plot, head_width, head_length..., annotate... 
+            smv = ax.arrow(x-u, y-v, u, v, color=mcntr.colors, alpha=mcntr.get_alpha(), # Can't get head to show. Tried quiver, plot, head_width, head_length..., annotate...
                  linewidth=1, zorder=2, capstyle='round', transform=WRF_proj) # tried length_includes_head=True, but zero-size gives ValueError about shape Nx2 needed.
 
 
-        # Save image. 
+        # Save image.
         plt.savefig(pngfile, dpi=175)
         print('created ' + os.path.realpath(pngfile))
 

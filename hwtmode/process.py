@@ -8,6 +8,11 @@ import s3fs
 import joblib
 from pyproj import Proj
 from scipy.spatial.distance import cdist
+import regionmask
+from hwtmode.data import load_geojson_objs
+import warnings
+warnings.filterwarnings('ignore')
+
 
 def find_coord_indices(lon_array, lat_array, lon_points, lat_points, proj_str):
     """
@@ -128,7 +133,23 @@ def generate_obs_grid(start_date, end_date, storm_report_path, model_grid_path, 
     return xr.merge(obs_list)
 
 
-def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_str):
+def create_obj_mask(gdf, grid):
+    mask = regionmask.mask_3D_geopandas(gdf, grid['lon'], grid['lat'], overlap=True, drop=False)
+    return mask
+
+
+def retrieve_mask_indices(gdf, grid):
+    if len(gdf) == 0:
+        return []
+    mask = create_obj_mask(gdf, grid)
+    mask_list = []
+    for i in range(len(mask['region'])):
+        mask_indices = np.argwhere(mask[i].values == True)
+        mask_list.append(mask_indices)
+    return mask_list
+
+
+def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_str, obj=False, json_path=None):
     """
     Gather individual model probabilities and populates onto a grid along with neighborhood probabilities.
     Args:
@@ -136,6 +157,8 @@ def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_st
         model_grid_path (str): Model path string
         model_names (list): list of model names to populate from dataframe
         proj_str: Projection string from physical model used top produce labels
+        obj (boolean): If True, use entire object bounds for probabilities, otherwise only the centroid is used.
+        json_path: Path to geoJSON files (neccessary if obj==True)
 
     Returns:
         List of xarray datasets including all model probabilities across the grid for a given model run / forecast hour.
@@ -146,8 +169,12 @@ def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_st
         storm_grid[coord].values = storm_grid[coord].astype('float32')
 
     for run_date in sorted(labels['Run_Date'].unique()):
-
+        print(run_date)
         run_labels = labels.loc[labels['Run_Date'] == run_date]
+        if obj:
+            start = pd.to_datetime(run_labels['Run_Date'].min()).strftime("%Y%m%d-%H%M")
+            end = pd.to_datetime(run_labels['Run_Date'].max()).strftime("%Y%m%d-%H%M")
+            gdf = load_geojson_objs(start, end, json_path, "hourly")
 
         for forecast_hour in run_labels['Forecast_Hour'].unique():
 
@@ -156,13 +183,14 @@ def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_st
             ds = storm_grid.expand_dims('time').assign_coords(init_time=('time', [pd.to_datetime(run_date)]),
                                                               valid_time=('time', [valid_time]),
                                                               forecast_hour=('time', [forecast_hour]))
+            if obj:
+                gdf_sub = gdf[gdf['valid_time'] == forecast_hour]
             for model in model_names:
 
                 for storm_type in ['Supercell', 'QLCS', 'Disorganized']:
 
                     model_mode = f'{model}_{storm_type}'
                     mode_prob = f'{model}_{storm_type}_prob'
-                    df_probs = fh_labels[[mode_prob, 'Centroid_Lon', 'Centroid_Lat']].reset_index()
                     df_storms = fh_labels[fh_labels[f'{model}_label'] == storm_type]
                     counts = np.zeros(shape=(1, storm_grid.y.size, storm_grid.x.size)).astype('float32')
                     raw_probs = counts.copy()
@@ -171,17 +199,16 @@ def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_st
                                                      df_storms['Centroid_Lon'],
                                                      df_storms['Centroid_Lat'],
                                                      proj_str)
-                    for i in label_indxs:
+                    for c, i in zip(df_storms.index, label_indxs):
+                        p = df_storms.loc[c, mode_prob]
                         counts[0, i[0], i[1]] = 1
-
-                    storm_indxs = find_coord_indices(ds['lon'].values,
-                                                     ds['lat'].values,
-                                                     df_probs['Centroid_Lon'],
-                                                     df_probs['Centroid_Lat'],
-                                                     proj_str)
-                    for c, i in enumerate(storm_indxs):
-                        p = df_probs.loc[c, mode_prob]
                         raw_probs[0, i[0], i[1]] = p
+                    if obj:
+                        mask_indices = retrieve_mask_indices(gdf_sub.loc[df_storms.index], storm_grid)
+                        for index in mask_indices:
+                            for j in index:
+                                counts[0, j[0], j[1]] = 1
+                                raw_probs[0, j[0], j[1]] = p
 
                     probabilities = compute_neighborhood_prob(counts, sigma=1)
 
@@ -195,7 +222,29 @@ def get_neighborhood_probabilities(labels, model_grid_path, model_names, proj_st
 
             ds_list.append(ds)
 
-    return xr.concat(ds_list, dim='time')
+    merged_ds = xr.concat(ds_list, dim='time')
+
+    # if run_labels['Forecast_Hour'].nunique() < 17:
+    #     merged_ds = add_missing_forecast_hours(merged_ds, 17)
+    # elif (run_labels['Forecast_Hour'].nunique() > 17) & (run_labels['Forecast_Hour'].nunique() < 47):
+    #     merged_ds = add_missing_forecast_hours(merged_ds, 47)
+
+    return merged_ds
+
+
+def add_missing_forecast_hours(ds, n_forecast_hours):
+
+    missing_fhs = [fh for fh in range(1, n_forecast_hours + 1) if fh not in ds.forecast_hour.values]
+    missing_list = []
+    for mfh in missing_fhs:
+        sample = ds.isel(time=0).expand_dims('time').copy()
+        sample['forecast_hour'] = mfh
+        sample['valid_time'] = sample['init_time'].values + pd.Timedelta(int(sample['forecast_hour'].values), unit='h')
+        for var in sample.data_vars:
+            sample[var].values = np.zeros(shape=sample[var].shape)
+        missing_list.append(sample)
+    all_missing = xr.concat(missing_list, dim='time')
+    return xr.concat([ds, all_missing], dim='time').sortby('forecast_hour')
 
 
 def compute_neighborhood_prob(array, sigma=1):

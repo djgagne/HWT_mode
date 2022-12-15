@@ -11,6 +11,7 @@ from shapely.geometry import Polygon
 import joblib
 import s3fs
 from sklearn.preprocessing import StandardScaler
+import geopandas as gpd
 
 
 def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: str, input_variables: list,
@@ -96,7 +97,7 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
 
 
 
-def decompose_circular_feature(df: pd.DataFrame, *features, period=2*np.pi, drop=True):
+def decompose_circular_feature(df: pd.DataFrame, *features, period=2*np.pi, drop=True, clobber=False):
     import logging
     """
     Decompose a circular feature like azimuth, LST, or orientation into its 1) sine and 2) cosine components.
@@ -112,11 +113,20 @@ def decompose_circular_feature(df: pd.DataFrame, *features, period=2*np.pi, drop
         df: pandas.DataFrame with sine and cosine components of feature(s) 
     """
     for feature in features:
-        logging.info(f"{feature} sin and cos components, period={period}")
-        df[feature+"_sin"] = np.sin(df[feature] * 2*np.pi/period)
-        df[feature+"_cos"] = np.cos(df[feature] * 2*np.pi/period)
+        if feature+"_sin" in df and not clobber:
+            logging.warning(f"{feature}_sin already present. Keep old values.")
+        else:
+            logging.info(f"derive sin component of {feature}, period={period}")
+            df[feature+"_sin"] = np.sin(df[feature] * 2*np.pi/period)
+
+        if feature+"_cos" in df and not clobber:
+            logging.warning(f"{feature}_cos already present. Keep old values.")
+        else:
+            logging.info(f"derive cos component of {feature}, period={period}")
+            df[feature+"_cos"] = np.cos(df[feature] * 2*np.pi/period)
+
         if drop:
-            logging.debug(f"drop {feature} column from dataframe")
+            logging.debug(f"drop {feature} column from DataFrame")
             df = df.drop(columns=feature)
     return df
 
@@ -230,6 +240,35 @@ def storm_max_value(output_data: xr.DataArray, masks: xr.DataArray) -> np.ndarra
     """
     max_values = (output_data * masks).max(axis=-1).max(axis=-1).values
     return max_values
+
+
+def uvmagnitude(df: pd.DataFrame, drop=True):
+    import logging
+    """
+    Look for U/V component pairs, derive magnitude.
+
+    Args:
+        df: Pandas DataFrame
+
+    Returns:
+        df: Pandas DataFrame with magnitudes
+    """
+
+    possible_components = [f'SHR{z}{potential}{sfx}' for z in "136" for potential in ["","-potential"] for sfx in ["_min","_mean","_max"]]
+    possible_components += [f'10{potential}{sfx}' for potential in ["","-potential"] for sfx in ["_min","_mean","_max"]]
+    logging.debug(f"uvmagnitude: possible_components={possible_components}")
+    # process possible u/v components
+    for possible_component in possible_components:
+        uc = "U"+possible_component 
+        vc = "V"+possible_component 
+        if uc in df.columns and vc in df.columns:
+            logging.info(f"calculate {possible_component} magnitude")
+            df[possible_component] = ( df[uc]**2 + df[vc]**2 )**0.5
+            if drop:
+                logging.debug(f"drop {[uc,vc]} columns from dataframe")
+                df = df.drop(columns=[uc,vc])
+    return df
+
 
 
 def predict_labels_gmm(neuron_acts, gmm_model, model_name, cluster_dict):
@@ -575,6 +614,18 @@ def load_labels(start, end, label_path, run_freq, file_format):
             continue
 
     return pd.concat(labels)
+
+def load_geojson_objs(start, end, path, run_freq):
+
+    objects = []
+    for run_date in pd.date_range(start, end, freq=run_freq[0]):
+        file_name = join(path, f'NCARSTORM_d01_{run_date.strftime("%Y%m%d-%H%M")}.json')
+        if isfile(file_name):
+            objects.append(gpd.read_file(file_name))
+        else:
+            continue
+
+    return pd.concat(objects)
 
 
 def save_labels(labels, out_path, file_format):
