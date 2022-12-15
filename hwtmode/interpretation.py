@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.metrics import roc_auc_score
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from os.path import join
@@ -11,8 +12,9 @@ from collections import Counter
 import xarray as xr
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from scipy.ndimage.filters import gaussian_filter
+
 sns.set_style("darkgrid")
+
 
 def corr_coef_metric(y_true, y_pred):
     return np.corrcoef(y_true, y_pred)[0, 1]
@@ -60,7 +62,7 @@ def plot_neuron_composites(out_path, model_desc, x_data, neuron_activations, neu
                                                           neuron_scores[neuron_ranking[a]]))
     if pc is not None:
         cb_ax = fig.add_axes(colorbar_loc)
-        cbar = fig.colorbar(pc, cax=cb_ax)
+        fig.colorbar(pc, cax=cb_ax)
     fig.suptitle(model_desc.replace("_", " ") + " " + variable_name + " Neuron Example Composites")
     plt.savefig(join(out_path, f"neuron_composite_{variable_name}_{model_desc}.{out_format}"),
                 dpi=dpi, bbox_inches="tight")
@@ -96,7 +98,7 @@ def plot_saliency_composites(out_path, model_name, saliency_data, neuron_activat
                                                           neuron_scores[neuron_ranking[a]]))
     if pc is not None:
         cb_ax = fig.add_axes(colorbar_loc)
-        cbar = fig.colorbar(pc, cax=cb_ax)
+        fig.colorbar(pc, cax=cb_ax)
     fig.suptitle(model_name.replace("_", " ") + " " + variable_name + " Saliency Composites")
     plt.savefig(join(out_path, f"saliency_composite_{variable_name}_{model_name}.{out_format}"),
                 dpi=dpi, bbox_inches="tight")
@@ -126,17 +128,20 @@ def plot_top_activations(out_path, model_name, x_data, meta_df, neuron_activatio
             ax.set_xticks(np.arange(0, 32, 8))
             ax.set_yticks(np.arange(0, 32, 8))
             ex_n_score = neuron_activations.loc[n_rank[a], f"neuron_{neuron_number:03d}"]
-            ax.text(0, 0, pd.Timestamp(meta_df.loc[n_rank[a], "time"]).strftime("%Y-%m-%d %HZ") + " S:{0:0.2f}".format(ex_n_score),
+            ax.text(0, 0, pd.Timestamp(meta_df.loc[n_rank[a], "time"]).strftime("%Y-%m-%d %HZ") + " S:{0:0.2f}".format(
+                ex_n_score),
                     bbox=dict(facecolor='white', alpha=0.5))
         if pc is not None:
             cb_ax = fig.add_axes(colorbar_loc)
-            cbar = fig.colorbar(pc, cax=cb_ax)
+            fig.colorbar(pc, cax=cb_ax)
         fig.suptitle(f"Neuron {neuron_number} Top Activated Storms, Score: {neuron_scores[neuron_number]:0.3f}",
                      fontsize=14, y=0.95)
-        plt.savefig(join(out_path, f"top_activations_neuron_{variable_name}_{neuron_number:03d}_{model_name}.{out_format}"),
-                    dpi=dpi, bbox_inches="tight")
+        plt.savefig(
+            join(out_path, f"top_activations_neuron_{variable_name}_{neuron_number:03d}_{model_name}.{out_format}"),
+            dpi=dpi, bbox_inches="tight")
         plt.close()
     return
+
 
 def cape_shear_modes(neuron_activations, output_path, data_path, mode, model_name,
                      gmm_name=None, cluster=False, num_storms=5000):
@@ -150,6 +155,8 @@ def cape_shear_modes(neuron_activations, output_path, data_path, mode, model_nam
         model_name: name of model used for training
         mode: data partition: 'train', 'val', or 'test'
         num_storms: number of top activated storms to use for density estimation for each neuron
+        gmm_name: Name of the gmm model
+        cluster: If True, then columns are by cluster rather than neuron
 
     Returns:
     """
@@ -163,19 +170,19 @@ def cape_shear_modes(neuron_activations, output_path, data_path, mode, model_nam
         file_name = f'CAPE_Shear_{model_name}_{mode}.png'
     df = pd.DataFrame(columns=['CAPE', '6km Shear', 'Value', col_type.capitalize()])
     cols = list(neuron_activations.columns[neuron_activations.columns.str.contains(col_type)])
-    
+
     dates = sorted(set(neuron_activations['run_date'].astype('datetime64[ns]')))
     file_strings = [join(data_path, f'track_step_NCARSTORM_d01_{x.strftime("%Y%m%d")}-0000.csv') for x in dates]
     ddf = dd.read_csv(file_strings).compute()
-    
+
     for col in cols:
         sub = neuron_activations.sort_values(by=[col], ascending=False).iloc[:num_storms, :]
         activation = sub[col].values
         x = ddf.iloc[sub.index, :]
         cape = x['MLCAPE-potential_max'].values
-        shear = np.sqrt(x['USHR6-potential_mean']**2 + x['VSHR6-potential_mean']**2).values
+        shear = np.sqrt(x['USHR6-potential_mean'] ** 2 + x['VSHR6-potential_mean'] ** 2).values
         df = df.append(pd.DataFrame(zip(cape, shear, activation, [col] * num_storms), columns=df.columns))
-        
+
     plt.figure(figsize=(20, 16))
     sns.set(font_scale=1.5)
     colors = sns.color_palette("deep", len(cols))
@@ -186,8 +193,9 @@ def cape_shear_modes(neuron_activations, output_path, data_path, mode, model_nam
                 palette=colors, clip=(0, 6000), linewidths=8, legend=False)
     plt.title(f'{col_type.capitalize()} for Top {num_storms} Storms ({mode})')
     plt.savefig(join(output_path, file_name), dpi=300, bbox_inches='tight')
-    
+
     return
+
 
 def spatial_neuron_activations(neuron_activations, output_path, mode, model_name,
                                gmm_name=None, cluster=False, quant_thresh=0.99):
@@ -229,7 +237,7 @@ def spatial_neuron_activations(neuron_activations, output_path, mode, model_name
         var = data[col]
         plt.scatter(data['centroid_lon'], data['centroid_lat'], transform=ccrs.PlateCarree(), label=None,
                     color=colors[i], alpha=0.25, s=2.5)
-        sns.kdeplot(data['centroid_lon'], data['centroid_lat'], data=var, levels=3, transform=ccrs.PlateCarree(),
+        sns.kdeplot(x=data['centroid_lon'], y=data['centroid_lat'], data=var, levels=3, transform=ccrs.PlateCarree(),
                     linewidths=5, thresh=0, color=colors[i], linestyles='--',
                     label=f'{col.capitalize()}')
         plt.legend(prop={'size': 16})
@@ -292,7 +300,7 @@ def plot_cluster_dist(data, output_path, cluster_type, n_cluster):
     plt.figure(figsize=(12, 6))
     counts = Counter(data['label'])
     percent_counts = [x / sum(counts.values()) * 100 for x in counts.values()]
-    sns.barplot(list(counts.keys()), percent_counts, palette='deep')
+    sns.barplot(x=list(counts.keys()), data=percent_counts, palette='deep')
     plt.xlabel('Cluster', fontsize=14)
     plt.ylabel('Percent of Storms', fontsize=14)
     plt.savefig(join(output_path, f'{cluster_type}_{n_cluster}_dist.png'), bbox_inches='tight')
@@ -363,21 +371,26 @@ def plot_storm_clusters(patch_data_path, output_path, cluster_data, n_storms=25,
             sub = cluster_data[cluster_data['label'] == cluster].sort_values(['label prob'], ascending=True)[:n_storms]
         elif prob_type == 'random':
             sub = cluster_data[cluster_data['label'] == cluster].sample(n_storms, random_state=seed)
-
+        else:
+            sub = cluster_data[cluster_data['label'] == cluster].sample(n_storms, random_state=seed)
         storm_idxs = sub.index.values
         patch_center = int(ds.row.size / 2)
         refl_var = [v for v in ds.data_vars if "REFL" in v][0]
-        x = ds[[refl_var, 'U10_curr', 'V10_curr', 'masks']].isel(p=storm_idxs, row=slice(patch_center - patch_radius, patch_center + patch_radius),
-                                                               col=slice(patch_center - patch_radius, patch_center + patch_radius)).load()
+        x = ds[[refl_var, 'U10_curr', 'V10_curr', 'masks']].isel(p=storm_idxs, row=slice(patch_center - patch_radius,
+                                                                                         patch_center + patch_radius),
+                                                                 col=slice(patch_center - patch_radius,
+                                                                           patch_center + patch_radius)).load()
         wind_step = int(np.ceil(np.sqrt(x.row.size)))
         wind_slice = (slice(wind_step, None, wind_step), slice(wind_step, None, wind_step))
         x_mesh, y_mesh = np.meshgrid(range(len(x['row'])), range(len(x['col'])))
-        fig, axes = plt.subplots(int(np.sqrt(n_storms)), int(np.sqrt(n_storms)), figsize=(16, 16), sharex=True, sharey=True)
+        fig, axes = plt.subplots(int(np.sqrt(n_storms)), int(np.sqrt(n_storms)), figsize=(16, 16), sharex=True,
+                                 sharey=True)
         plt.subplots_adjust(wspace=0.03, hspace=0.03)
 
         for i, ax in enumerate(axes.ravel()):
             try:
-                im = ax.contourf(x['REFL_COM_curr'][i], levels=np.linspace(0, 80, 25), vmin=0, vmax=80, cmap='gist_ncar')
+                im = ax.contourf(x['REFL_COM_curr'][i], levels=np.linspace(0, 80, 25), vmin=0, vmax=80,
+                                 cmap='gist_ncar')
             except:
                 continue
             ax.contour(x['masks'][i], colors='k')

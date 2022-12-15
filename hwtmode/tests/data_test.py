@@ -5,7 +5,7 @@ from os.path import exists
 
 class TestData(unittest.TestCase):
     def setUp(self) -> None:
-        self.patch_path = "../testdata/track_data_ncarstorm_3km_REFL_COM_ws_nc_small/"
+        self.patch_path = "../../testdata/track_data_ncarstorm_3km_REFL_COM_ws_nc_small/"
         if not exists(self.patch_path):
             self.patch_path = "testdata/track_data_ncarstorm_3km_REFL_COM_ws_nc_small/"
         self.start_date = "2011-04-25"

@@ -2,12 +2,12 @@ name: hwtmode
 channels:
   - conda-forge
 dependencies:
-  - python=3.7
+  - python=3.10
   - pip
   - numpy
   - scipy
   - matplotlib
-  - pandas==1.2.3
+  - pandas
   - xarray
   - pyyaml
   - netcdf4
@@ -25,9 +25,8 @@ dependencies:
   - jupyterlab
   - ipywidgets
   - pip:
-    - tensorflow==2.4.0
-    - tensorflow-probability==0.12.2
+    - tensorflow
+    - tensorflow-probability
     - pytest
     - geopandas
     - regionmask
-    - .

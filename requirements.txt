@@ -9,3 +9,8 @@ netcdf4
 matplotlib
 scikit-learn
 tensorflow-probability
+cartopy
+joblib
+ipywidgets
+regionmask
+pyproj

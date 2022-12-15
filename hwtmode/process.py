@@ -273,7 +273,7 @@ def load_hrrr_data(bucket, run_date, run_hour, variables):
     run_date_str = pd.to_datetime(run_date).strftime("%Y%m%d")
     forecast_hour_str = pd.to_datetime(join(run_date, run_hour)).strftime("%H")
     datasets = []
-
+    coords = None
     for i, variable in enumerate(variables):
         files = []
         level = variable.split('-')[1]
