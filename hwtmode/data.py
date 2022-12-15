@@ -1,6 +1,5 @@
 import xarray as xr
 import numpy as np
-import os
 from os import makedirs
 from os.path import exists, join, isfile
 from glob import glob
@@ -49,7 +48,9 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
         elif run_freq == 'daily':
             start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d 00:00:00"))
             end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d 00:00:00"))
-
+        else:
+            start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d 00:00:00"))
+            end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d 00:00:00"))
     else:
         start_date_stamp = pd.Timestamp(pd.Timestamp(start_date, tz="UTC").strftime("%Y-%m-%d %H:00:00"))
         end_date_stamp = pd.Timestamp(pd.Timestamp(end_date, tz="UTC").strftime("%Y-%m-%d %H:00:00"))
@@ -65,7 +66,7 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
     for p, patch_file in enumerate(tqdm(valid_patch_files, ncols=60)):
         ds = xr.open_dataset(patch_file)
         ds["run_date"] = xr.DataArray([valid_patch_dates.values[p]] * ds.dims["p"],
-                                         dims=("p",), name="run_date")
+                                      dims=("p",), name="run_date")
         if patch_radius is not None:
             row_mid = int(np.round(((ds["row"].max() - ds["row"].min()) / 2).values[()]))
             col_mid = int(np.round(((ds["col"].max() - ds["col"].min()) / 2).values[()]))
@@ -77,7 +78,7 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
             else:
                 input_data_list.append(ds[input_variables].sel(row=row_slice, col=col_slice).compute())
             output_data_list.append(ds[output_variables].sel(row=row_slice, col=col_slice).compute())
-            meta_data_list.append(ds[meta_variables].sel(row=row_slice, col=col_slice).compute())                
+            meta_data_list.append(ds[meta_variables].sel(row=row_slice, col=col_slice).compute())
         else:
             if mask:
                 masked = ds[input_variables].where(ds["masks"] > 0, 0)
@@ -85,7 +86,7 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
             else:
                 input_data_list.append(ds[input_variables].compute())
             output_data_list.append(ds[output_variables].compute())
-            meta_data_list.append(ds[meta_variables].compute())            
+            meta_data_list.append(ds[meta_variables].compute())
         ds.close()
     input_data = xr.concat(input_data_list, dim="p")
     output_data = xr.concat(output_data_list, dim="p")
@@ -96,8 +97,7 @@ def load_patch_files(start_date: str, end_date: str, run_freq: str, patch_dir: s
     return input_data, output_data, meta_data
 
 
-
-def decompose_circular_feature(df: pd.DataFrame, *features, period=2*np.pi, drop=True, clobber=False):
+def decompose_circular_feature(df: pd.DataFrame, *features, period=2 * np.pi, drop=True, clobber=False):
     import logging
     """
     Decompose a circular feature like azimuth, LST, or orientation into its 1) sine and 2) cosine components.
@@ -113,17 +113,17 @@ def decompose_circular_feature(df: pd.DataFrame, *features, period=2*np.pi, drop
         df: pandas.DataFrame with sine and cosine components of feature(s) 
     """
     for feature in features:
-        if feature+"_sin" in df and not clobber:
+        if feature + "_sin" in df and not clobber:
             logging.warning(f"{feature}_sin already present. Keep old values.")
         else:
             logging.info(f"derive sin component of {feature}, period={period}")
-            df[feature+"_sin"] = np.sin(df[feature] * 2*np.pi/period)
+            df[feature + "_sin"] = np.sin(df[feature] * 2 * np.pi / period)
 
-        if feature+"_cos" in df and not clobber:
+        if feature + "_cos" in df and not clobber:
             logging.warning(f"{feature}_cos already present. Keep old values.")
         else:
             logging.info(f"derive cos component of {feature}, period={period}")
-            df[feature+"_cos"] = np.cos(df[feature] * 2*np.pi/period)
+            df[feature + "_cos"] = np.cos(df[feature] * 2 * np.pi / period)
 
         if drop:
             logging.debug(f"drop {feature} column from DataFrame")
@@ -204,7 +204,7 @@ def min_max_scale(patch_data, scale_values=None):
             scale_values.loc[var_name, "min"] = float(patch_data[..., v].min().values)
             scale_values.loc[var_name, "max"] = float(patch_data[..., v].max().values)
         transformed[..., v] = (patch_data[..., v] - scale_values.loc[var_name, "min"]) \
-            / (scale_values.loc[var_name, "max"] - scale_values.loc[var_name, "min"])
+                              / (scale_values.loc[var_name, "max"] - scale_values.loc[var_name, "min"])
     return transformed, scale_values
 
 
@@ -254,21 +254,22 @@ def uvmagnitude(df: pd.DataFrame, drop=True):
         df: Pandas DataFrame with magnitudes
     """
 
-    possible_components = [f'SHR{z}{potential}{sfx}' for z in "136" for potential in ["","-potential"] for sfx in ["_min","_mean","_max"]]
-    possible_components += [f'10{potential}{sfx}' for potential in ["","-potential"] for sfx in ["_min","_mean","_max"]]
+    possible_components = [f'SHR{z}{potential}{sfx}' for z in "136" for potential in ["", "-potential"] for sfx in
+                           ["_min", "_mean", "_max"]]
+    possible_components += [f'10{potential}{sfx}' for potential in ["", "-potential"] for sfx in
+                            ["_min", "_mean", "_max"]]
     logging.debug(f"uvmagnitude: possible_components={possible_components}")
     # process possible u/v components
     for possible_component in possible_components:
-        uc = "U"+possible_component 
-        vc = "V"+possible_component 
+        uc = "U" + possible_component
+        vc = "V" + possible_component
         if uc in df.columns and vc in df.columns:
             logging.info(f"calculate {possible_component} magnitude")
-            df[possible_component] = ( df[uc]**2 + df[vc]**2 )**0.5
+            df[possible_component] = (df[uc] ** 2 + df[vc] ** 2) ** 0.5
             if drop:
-                logging.debug(f"drop {[uc,vc]} columns from dataframe")
-                df = df.drop(columns=[uc,vc])
+                logging.debug(f"drop {[uc, vc]} columns from dataframe")
+                df = df.drop(columns=[uc, vc])
     return df
-
 
 
 def predict_labels_gmm(neuron_acts, gmm_model, model_name, cluster_dict):
@@ -501,7 +502,7 @@ def get_gmm_predictions(patch, cnn_mod, model_path, model_name):
         patch: Patch to be fed into CNN model for neuron activations
         cnn_mod: CNN model object
         model_path: Base path for models
-        mdoel_name: Model name
+        model_name: Model name
     Returns:
         List of GMM probabilities for patch
     """
@@ -615,8 +616,8 @@ def load_labels(start, end, label_path, run_freq, file_format):
 
     return pd.concat(labels)
 
-def load_geojson_objs(start, end, path, run_freq):
 
+def load_geojson_objs(start, end, path, run_freq):
     objects = []
     for run_date in pd.date_range(start, end, freq=run_freq[0]):
         file_name = join(path, f'NCARSTORM_d01_{run_date.strftime("%Y%m%d-%H%M")}.json')
@@ -653,7 +654,6 @@ def save_labels(labels, out_path, file_format):
 
 
 def save_gridded_labels(ds, base_path, tabular_format='csv'):
-
     print("Writing out probabilities...")
     run_date_str = pd.to_datetime(ds['init_time'].values).strftime('%Y%m%d%H00')
     for run_date in run_date_str:

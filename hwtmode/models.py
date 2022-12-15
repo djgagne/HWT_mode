@@ -54,6 +54,7 @@ class BaseConvNet(object):
             last hidden layer to promote more independent activations.
 
     """
+
     def __init__(self, min_filters=16, filter_growth_rate=2, filter_width=5, min_data_width=4, pooling_width=2,
                  hidden_activation="relu", output_type="linear",
                  pooling="mean", use_dropout=False, dropout_alpha=0.0, dense_neurons=64,
