@@ -25,6 +25,7 @@ dependencies:
   - jupyterlab
   - ipywidgets
   - pip:
+    - basemap
     - tensorflow
     - tensorflow-probability
     - pytest

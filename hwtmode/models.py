@@ -1,3 +1,4 @@
+import tensorflow as tf
 from tensorflow.keras.layers import Dense, Conv2D, Activation, Input, Flatten, AveragePooling2D, MaxPool2D, LeakyReLU
 from tensorflow.keras.layers import SpatialDropout2D, Dropout
 from tensorflow.keras.models import Model
@@ -7,7 +8,6 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.models import load_model
 from .regularizers import CovarianceRegularizer
-import tensorflow as tf
 import numpy as np
 from tqdm import trange, tqdm
 import pandas as pd
